@@ -401,17 +401,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Contributing
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#license" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -561,17 +550,6 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#contributing" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Contributing
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
   <a href="#license" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -617,21 +595,7 @@ Test with real Kubernetes features: network policies, service mesh, pod disrupti
 Works with minikube, kind, k3d, or remote clusters out of the box</p>
 <hr />
 <h2 id="quick-example">Quick Example</h2>
-<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nd">@TestK8s</span>
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kd">class</span> <span class="nc">OrderServiceTest</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nd">@K8sPod</span>
-</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="n">MongoDBPod</span><span class="w"> </span><span class="n">mongodb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MongoDBPod</span><span class="p">();</span>
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>
-</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">    </span><span class="nd">@K8sPod</span>
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a><span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="n">KafkaPod</span><span class="w"> </span><span class="n">kafka</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">KafkaPod</span><span class="p">();</span>
-</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">    </span><span class="nd">@Test</span>
-</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">shouldProcessOrder</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">        </span><span class="c1">// Your test code here</span>
-</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">        </span><span class="c1">// MongoDB and Kafka are running in Kubernetes</span>
-</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="p">}</span>
+<div class="language-java highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>
 </span></code></pre></div>
 <hr />
 <h2 id="current-status">Current Status</h2>
@@ -665,17 +629,8 @@ TestPods is currently in beta. APIs may change before 1.0 release.</p>
 <ul>
 <li>✅ Core library architecture</li>
 <li>✅ Fabric8 Kubernetes client integration</li>
-<li>🚧 MongoDBPod, KafkaPod, PostgreSQLPod</li>
-<li>🚧 Spring Boot starter</li>
-<li>🚧 Gradle/Maven plugins</li>
-<li>📋 Support for StatefulSets</li>
-<li>📋 Service mesh integration</li>
-<li>📋 Chaos engineering features</li>
+<li>🚧 KafkaPod, PostgreSQLPod</li>
 </ul>
-<hr />
-<h2 id="contributing">Contributing</h2>
-<p>TestPods is open source and welcomes contributions!</p>
-<p>See our <a href="https://github.com/testpods-org/testpods/blob/main/CONTRIBUTING.md">Contributing Guide</a> <em>(coming soon)</em></p>
 <hr />
 <h2 id="license">License</h2>
 <p>TestPods is licensed under the Apache License 2.0</p>
