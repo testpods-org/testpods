@@ -1,0 +1,6 @@
+# System tests application configuration
+# This module is primarily for running integration tests
+
+spring:
+  application:
+    name: system-tests

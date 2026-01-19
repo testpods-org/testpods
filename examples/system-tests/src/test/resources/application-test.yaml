@@ -1,0 +1,12 @@
+# Connection properties for external services
+# These can be overridden via environment variables in CI
+
+order-service:
+  base-url: http://localhost:8081
+
+product-service:
+  base-url: http://localhost:8082
+
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
