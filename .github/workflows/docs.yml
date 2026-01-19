@@ -2,7 +2,8 @@ name: Deploy Beta Docs
 
 on:
   push:
-    branches: 
+    branches:
+      - beta-work
       - main
       - develop  # if you use a develop branch
   workflow_dispatch:  # Allows manual trigger

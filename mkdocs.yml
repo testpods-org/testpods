@@ -4,8 +4,7 @@ site_description: Kubernetes-native testing for Java microservices
 repo_url: https://github.com/testpods-org/testpods
 repo_name: testpods-org/testpods
 
-# docs_dir: website-docs
-docs_dir: docs
+docs_dir: website-docs
 
 theme:
   name: material
