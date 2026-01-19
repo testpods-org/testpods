@@ -24,21 +24,7 @@ Works with minikube, kind, k3d, or remote clusters out of the box
 
 ## Quick Example
 ```java
-@TestK8s
-class OrderServiceTest {
-    
-    @K8sPod
-    static MongoDBPod mongodb = new MongoDBPod();
-    
-    @K8sPod
-    static KafkaPod kafka = new KafkaPod();
-    
-    @Test
-    void shouldProcessOrder() {
-        // Your test code here
-        // MongoDB and Kafka are running in Kubernetes
-    }
-}
+
 ```
 
 ---
@@ -84,20 +70,7 @@ TestPods believes that testing microservices should be:
 
 - ✅ Core library architecture
 - ✅ Fabric8 Kubernetes client integration
-- 🚧 MongoDBPod, KafkaPod, PostgreSQLPod
-- 🚧 Spring Boot starter
-- 🚧 Gradle/Maven plugins
-- 📋 Support for StatefulSets
-- 📋 Service mesh integration
-- 📋 Chaos engineering features
-
----
-
-## Contributing
-
-TestPods is open source and welcomes contributions!
-
-See our [Contributing Guide](https://github.com/testpods-org/testpods/blob/main/CONTRIBUTING.md) *(coming soon)*
+- 🚧 KafkaPod, PostgreSQLPod
 
 ---
 
