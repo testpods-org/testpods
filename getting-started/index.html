@@ -395,50 +395,11 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#setting-up-your-kubernetes-cluster" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Setting Up Your Kubernetes Cluster
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Setting Up Your Kubernetes Cluster">
-      <ul class="md-nav__list">
-        
           <li class="md-nav__item">
-  <a href="#option-1-minikube" class="md-nav__link">
+  <a href="#minikube-setup-using-minikit-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Option 1: Minikube
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#option-2-kind" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Option 2: kind
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#option-3-k3d" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Option 3: k3d
+        Minikube setup using MiniKit CLI
       
     </span>
   </a>
@@ -447,50 +408,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#your-first-test" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Your First Test
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-happens" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What Happens?
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Next Steps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#need-help" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Need Help?
-      
-    </span>
-  </a>
   
 </li>
       
@@ -573,50 +490,11 @@
   
 </li>
         
-      </ul>
-    </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#setting-up-your-kubernetes-cluster" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Setting Up Your Kubernetes Cluster
-      
-    </span>
-  </a>
-  
-    <nav class="md-nav" aria-label="Setting Up Your Kubernetes Cluster">
-      <ul class="md-nav__list">
-        
           <li class="md-nav__item">
-  <a href="#option-1-minikube" class="md-nav__link">
+  <a href="#minikube-setup-using-minikit-cli" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Option 1: Minikube
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#option-2-kind" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Option 2: kind
-      
-    </span>
-  </a>
-  
-</li>
-        
-          <li class="md-nav__item">
-  <a href="#option-3-k3d" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Option 3: k3d
+        Minikube setup using MiniKit CLI
       
     </span>
   </a>
@@ -625,50 +503,6 @@
         
       </ul>
     </nav>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#your-first-test" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Your First Test
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#what-happens" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What Happens?
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#next-steps" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Next Steps
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#need-help" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Need Help?
-      
-    </span>
-  </a>
   
 </li>
       
@@ -696,9 +530,9 @@
 <p>This guide will help you get started with TestPods.</p>
 <h2 id="prerequisites">Prerequisites</h2>
 <ul>
-<li>Java 17 or later</li>
+<li>Java 21 or later</li>
 <li>Maven or Gradle</li>
-<li>A local Kubernetes cluster (minikube, kind, or k3d)</li>
+<li>A local Minikube running a Kubernetes cluster </li>
 <li>kubectl configured</li>
 </ul>
 <h2 id="installation">Installation</h2>
@@ -706,68 +540,15 @@
 <div class="language-xml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">&lt;dependency&gt;</span>
 </span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">    </span><span class="nt">&lt;groupId&gt;</span>org.testpods<span class="nt">&lt;/groupId&gt;</span>
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">    </span><span class="nt">&lt;artifactId&gt;</span>testpods-core<span class="nt">&lt;/artifactId&gt;</span>
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">&lt;version&gt;</span>0.1.0-BETA<span class="nt">&lt;/version&gt;</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">    </span><span class="nt">&lt;version&gt;</span>0.1.0-SNAPSHOT<span class="nt">&lt;/version&gt;</span>
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">    </span><span class="nt">&lt;scope&gt;</span>test<span class="nt">&lt;/scope&gt;</span>
 </span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="nt">&lt;/dependency&gt;</span>
 </span></code></pre></div>
 <h3 id="gradle">Gradle</h3>
-<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>testImplementation &#39;org.testpods:testpods-core:0.1.0-BETA&#39;
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>testImplementation &#39;org.testpods:testpods-core:0.1.0-SNAPSHOT&#39;
 </span></code></pre></div>
-<h2 id="setting-up-your-kubernetes-cluster">Setting Up Your Kubernetes Cluster</h2>
-<h3 id="option-1-minikube">Option 1: Minikube</h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>minikube<span class="w"> </span>start
-</span></code></pre></div>
-<h3 id="option-2-kind">Option 2: kind</h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>kind<span class="w"> </span>create<span class="w"> </span>cluster
-</span></code></pre></div>
-<h3 id="option-3-k3d">Option 3: k3d</h3>
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>k3d<span class="w"> </span>cluster<span class="w"> </span>create<span class="w"> </span>testpods
-</span></code></pre></div>
-<h2 id="your-first-test">Your First Test</h2>
-<p>Create a test class:
-<div class="language-java highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="kn">import</span><span class="w"> </span><span class="nn">org.testpods.core.annotation.TestK8s</span><span class="p">;</span>
-</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="kn">import</span><span class="w"> </span><span class="nn">org.testpods.mongodb.MongoDBPod</span><span class="p">;</span>
-</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="kn">import</span><span class="w"> </span><span class="nn">org.junit.jupiter.api.Test</span><span class="p">;</span>
-</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a>
-</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="nd">@TestK8s</span>
-</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="kd">class</span> <span class="nc">MyFirstTest</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
-</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="nd">@K8sPod</span>
-</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="kd">static</span><span class="w"> </span><span class="n">MongoDBPod</span><span class="w"> </span><span class="n">mongodb</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">new</span><span class="w"> </span><span class="n">MongoDBPod</span><span class="p">();</span>
-</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a>
-</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">    </span><span class="nd">@Test</span>
-</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">    </span><span class="kt">void</span><span class="w"> </span><span class="nf">testWithMongoDB</span><span class="p">()</span><span class="w"> </span><span class="p">{</span>
-</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="w">        </span><span class="n">String</span><span class="w"> </span><span class="n">connectionString</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">mongodb</span><span class="p">.</span><span class="na">getConnectionString</span><span class="p">();</span>
-</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="w">        </span><span class="c1">// Use MongoDB in your test</span>
-</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="w">        </span><span class="n">System</span><span class="p">.</span><span class="na">out</span><span class="p">.</span><span class="na">println</span><span class="p">(</span><span class="s">&quot;MongoDB running at: &quot;</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="n">connectionString</span><span class="p">);</span>
-</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a><span class="w">    </span><span class="p">}</span>
-</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="p">}</span>
-</span></code></pre></div></p>
-<p>Run your test:
-<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>mvn<span class="w"> </span><span class="nb">test</span>
-</span></code></pre></div></p>
-<h2 id="what-happens">What Happens?</h2>
-<p>When you run the test:</p>
-<ol>
-<li>TestPods detects your local Kubernetes cluster</li>
-<li>Creates a namespace for your test</li>
-<li>Deploys MongoDB as a Pod</li>
-<li>Waits for it to be ready</li>
-<li>Provides the connection string to your test</li>
-<li>Cleans up after the test completes</li>
-</ol>
-<h2 id="next-steps">Next Steps</h2>
-<ul>
-<li>Learn about <a href="pods.md">available Pods</a> <em>(coming soon)</em></li>
-<li>Configure <a href="spring-boot.md">Spring Boot integration</a> <em>(coming soon)</em></li>
-<li>Explore <a href="advanced.md">advanced features</a> <em>(coming soon)</em></li>
-</ul>
-<h2 id="need-help">Need Help?</h2>
-<ul>
-<li>Check the <a href="faq.md">FAQ</a> <em>(coming soon)</em></li>
-<li>Open an <a href="https://github.com/testpods-org/testpods/issues">issue on GitHub</a></li>
-<li>Join the discussion <em>(community links coming soon)</em></li>
-</ul>
+<h3 id="minikube-setup-using-minikit-cli">Minikube setup using MiniKit CLI</h3>
+<p>Follow the <a href="../development/minikit-agent.md">MiniKit CLI</a> installation instructions to create and start a MiniKube VM running a Kubernetes cluster.</p>
 
 
 
