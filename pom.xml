@@ -41,8 +41,8 @@
         <module>parent-pom</module>
         <module>bom</module>
         <module>core</module>
-        <!-- <module>modules</moddule> -->
-        <!-- <module>examples</module>-->
+        <module>modules</module>
+        <module>examples</module>
     </modules>
 
     <properties>

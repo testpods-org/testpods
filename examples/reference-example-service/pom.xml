@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>org.testpods.examples</groupId>
 	<artifactId>example-service</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>0.1.0-SNAPSHOT</version>
 	<name>example-service</name>
 	<description>Example service template for Spring Boot service in testpods</description>
 	<url/>
@@ -27,7 +27,7 @@
 		<url/>
 	</scm>
 	<properties>
-		<java.version>25</java.version>
+		<java.version>21</java.version>
 	</properties>
 	<dependencies>
 		<dependency>
