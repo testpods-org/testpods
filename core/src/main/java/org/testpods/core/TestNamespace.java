@@ -19,12 +19,7 @@ public class TestNamespace implements Closeable {
 
   public TestNamespace(K8sCluster cluster) {
       this.cluster = cluster;
-      this.name = generateName();
-  }
-
-  private String generateName() {
-      //TODO the name should consist of the word testpods and mayebe test class name and a small uuid part.
-      return "testpods";
+      this.name = NamespaceNaming.generate();
   }
 
   /** Creates the namespace in the cluster if it doesn't already exist. */
