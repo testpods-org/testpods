@@ -5,6 +5,11 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
 import io.fabric8.kubernetes.client.dsl.PodResource;
+import org.testpods.core.ExecResult;
+import org.testpods.core.PropertyContext;
+import org.testpods.core.TestNamespace;
+import org.testpods.core.builders.InitContainerBuilder;
+import org.testpods.core.builders.SidecarBuilder;
 import org.testpods.core.wait.WaitStrategy;
 
 import java.io.ByteArrayOutputStream;

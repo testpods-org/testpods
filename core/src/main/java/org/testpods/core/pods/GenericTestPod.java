@@ -6,6 +6,7 @@ import io.fabric8.kubernetes.api.model.ContainerPortBuilder;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.EnvVarBuilder;
 import io.fabric8.kubernetes.api.model.IntOrString;
+import org.testpods.core.PropertyContext;
 import org.testpods.core.wait.WaitStrategy;
 
 import java.time.Duration;
@@ -67,8 +68,8 @@ public class GenericTestPod extends DeploymentPod<GenericTestPod> {
      */
     public GenericTestPod(String image) {
         this.image = image;
-//        this.name = deriveNameFromImage(image);
-//        this.labels.put("app", this.name);
+        this.name = deriveNameFromImage(image);
+        this.labels.put("app", this.name);
     }
 
     /**

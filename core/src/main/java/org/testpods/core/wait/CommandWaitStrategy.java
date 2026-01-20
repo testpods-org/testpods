@@ -1,6 +1,6 @@
 package org.testpods.core.wait;
 
-import org.testpods.core.pods.ExecResult;
+import org.testpods.core.ExecResult;
 import org.testpods.core.pods.TestPod;
 
 import java.time.Duration;

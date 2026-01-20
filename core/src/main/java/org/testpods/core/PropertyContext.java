@@ -1,4 +1,4 @@
-package org.testpods.core.pods;
+package org.testpods.core;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;

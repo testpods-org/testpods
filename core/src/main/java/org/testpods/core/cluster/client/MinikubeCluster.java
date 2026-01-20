@@ -15,7 +15,7 @@ import java.io.InputStreamReader;
 /** K8sCluster implementation for Minikube clusters. */
 public class MinikubeCluster implements K8sCluster, Closeable {
 
-  private static final String DEFAULT_PROFILE = "minikube";
+  private static final String DEFAULT_PROFILE = "minikit";
 
   private final KubernetesClient client;
   private final ExternalAccessStrategy accessStrategy;
@@ -28,7 +28,7 @@ public class MinikubeCluster implements K8sCluster, Closeable {
     this.accessStrategy = ExternalAccessStrategy.minikubeService();
   }
 
-  /** Create a MinikubeCluster using the default profile ("minikube"). */
+  /** Create a MinikubeCluster using the minikit profile ("minikit"). */
   public static MinikubeCluster create() {
     return new MinikubeCluster(DEFAULT_PROFILE);
   }

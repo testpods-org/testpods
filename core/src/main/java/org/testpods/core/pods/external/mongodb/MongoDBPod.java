@@ -1,6 +1,6 @@
 package org.testpods.core.pods.external.mongodb;
 
-import org.testpods.core.pods.PropertyContext;
+import org.testpods.core.PropertyContext;
 import org.testpods.core.pods.StatefulSetPod;
 
 

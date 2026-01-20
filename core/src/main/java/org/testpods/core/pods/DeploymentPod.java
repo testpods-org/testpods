@@ -1,14 +1,13 @@
 package org.testpods.core.pods;
 
 
-import io.fabric8.kubernetes.api.model.IntOrString;
-import io.fabric8.kubernetes.api.model.PodSpec;
-import io.fabric8.kubernetes.api.model.PodSpecBuilder;
-import io.fabric8.kubernetes.api.model.Service;
-import io.fabric8.kubernetes.api.model.ServiceBuilder;
+import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import io.fabric8.kubernetes.client.KubernetesClientException;
+import org.testpods.core.PropertyContext;
+import org.testpods.core.cluster.HostAndPort;
 import org.testpods.core.wait.WaitStrategy;
 
 import java.util.ArrayList;
@@ -37,7 +36,7 @@ import java.util.function.UnaryOperator;
  * <ul>
  *   <li>{@link #buildMainContainer()} - Define the primary container</li>
  *   <li>{@link #getInternalPort()} - Return the primary port</li>
- *   <li>{@link #publishProperties(org.testpods.core.pods.PropertyContext)} - Publish connection info</li>
+ *   <li>{@link #publishProperties(PropertyContext)} - Publish connection info</li>
  * </ul>
  *
  * @param <SELF> The concrete type for fluent method chaining
@@ -124,8 +123,18 @@ public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends Ba
             .resource(service)
             .create();
 
-        // Wait for ready
-        waitForReady();
+        try {
+            // Wait for ready
+            waitForReady();
+        } catch (Exception e) {
+            final List<StatusDetails> delete = client.services().delete();
+            delete.forEach(status -> {System.out.println(status.toString());
+                        });
+
+            final List<StatusDetails> deploymentDelete = client.apps().deployments().inNamespace(namespace.getName())
+                    .withName(name).delete();
+            deploymentDelete.forEach(status -> {System.out.println(status.toString());});
+        }
     }
 
     @Override
@@ -133,10 +142,10 @@ public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends Ba
         KubernetesClient client = getClient();
 
         if (deployment != null) {
-            client.apps().deployments()
-                .inNamespace(namespace.getName())
-                .withName(name)
-                .delete();
+            final List<StatusDetails> statusDetails = client.apps().deployments()
+                    .inNamespace(namespace.getName())
+                    .withName(name)
+                    .delete();
             deployment = null;
         }
 
@@ -189,20 +198,18 @@ public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends Ba
 
     @Override
     public String getExternalHost() {
-//        HostAndPort endpoint = namespace.getCluster()
-//            .getAccessStrategy()
-//            .getExternalEndpoint(this, getInternalPort());
-//        return endpoint.host();
-        return null;
+        HostAndPort endpoint = namespace.getCluster()
+            .getAccessStrategy()
+            .getExternalEndpoint(this, getInternalPort());
+        return endpoint.host();
     }
 
     @Override
     public int getExternalPort() {
-//        HostAndPort endpoint = namespace.getCluster()
-//            .getAccessStrategy()
-//            .getExternalEndpoint(this, getInternalPort());
-//        return endpoint.port();
-        return -1;
+        HostAndPort endpoint = namespace.getCluster()
+            .getAccessStrategy()
+            .getExternalEndpoint(this, getInternalPort());
+        return endpoint.port();
     }
 
     // =============================================================
@@ -210,11 +217,10 @@ public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends Ba
     // =============================================================
 
 //    @Override
-//    protected WaitStrategy getDefaultWaitStrategy() {
-////        return WaitStrategy.forReadinessProbe()
-////            .withTimeout(Duration.ofMinutes(1));
-//        return null;
-//    }
+    protected WaitStrategy getDefaultWaitStrategy() {
+        return WaitStrategy.forReadinessProbe()
+            .withTimeout(java.time.Duration.ofMinutes(1));
+    }
 
     // =============================================================
     // Resource building

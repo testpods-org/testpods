@@ -1,4 +1,6 @@
-package org.testpods.core.pods;
+package org.testpods.core;
+
+import org.testpods.core.pods.TestPod;
 
 import java.util.Objects;
 

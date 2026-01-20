@@ -1,4 +1,4 @@
-package org.testpods.core.pods;
+package org.testpods.core.builders;
 
 import io.fabric8.kubernetes.api.model.ContainerPortBuilder;
 import io.fabric8.kubernetes.api.model.EnvVarBuilder;
@@ -41,7 +41,7 @@ public class SidecarBuilder {
         return this;
     }
 
-    io.fabric8.kubernetes.api.model.Container build() {
+    public io.fabric8.kubernetes.api.model.Container build() {
         var builder = new io.fabric8.kubernetes.api.model.ContainerBuilder()
                 .withName(name)
                 .withImage(image);

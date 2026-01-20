@@ -1,4 +1,4 @@
-package org.testpods.core.pods;
+package org.testpods.core.builders;
 
 import io.fabric8.kubernetes.api.model.EnvVarBuilder;
 import io.fabric8.kubernetes.api.model.VolumeMount;
@@ -47,7 +47,7 @@ public class InitContainerBuilder {
     }
 
     // Convert to Fabric8 Container object
-    io.fabric8.kubernetes.api.model.Container build() {
+    public io.fabric8.kubernetes.api.model.Container build() {
         var builder = new io.fabric8.kubernetes.api.model.ContainerBuilder()
                 .withName(name)
                 .withImage(image);

@@ -4,9 +4,9 @@ import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
+import org.testpods.core.PropertyContext;
 import org.testpods.core.wait.WaitStrategy;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +34,7 @@ import java.util.function.UnaryOperator;
  * <ul>
  *   <li>{@link #buildMainContainer()} - Define the primary container</li>
  *   <li>{@link #getInternalPort()} - Return the primary port</li>
- *   <li>{@link #publishProperties(org.testpods.core.pods.PropertyContext)} - Publish connection info</li>
+ *   <li>{@link #publishProperties(PropertyContext)} - Publish connection info</li>
  * </ul>
  *
  * @param <SELF> The concrete type for fluent method chaining

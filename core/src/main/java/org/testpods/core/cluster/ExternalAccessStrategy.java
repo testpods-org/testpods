@@ -309,6 +309,8 @@ class MinikubeServiceAccessStrategy implements ExternalAccessStrategy {
                     "minikube",
                     "service",
                     pod.getName(),
+                    "-p",
+                    "minikit",
                     "-n",
                     pod.getNamespace().getName(),
                     "--url");

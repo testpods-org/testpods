@@ -1,11 +1,9 @@
-package org.testpods.core.pods;
-
-import org.testpods.core.cluster.K8sCluster;
+package org.testpods.core;
 
 import io.fabric8.kubernetes.api.model.Namespace;
 import io.fabric8.kubernetes.api.model.NamespaceBuilder;
-
 import java.io.Closeable;
+import org.testpods.core.cluster.K8sCluster;
 
 /** A Kubernetes namespace for running test pods. */
 public class TestNamespace implements Closeable {
@@ -19,6 +17,16 @@ public class TestNamespace implements Closeable {
     this.name = name;
   }
 
+  public TestNamespace(K8sCluster cluster) {
+      this.cluster = cluster;
+      this.name = generateName();
+  }
+
+  private String generateName() {
+      //TODO the name should consist of the word testpods and mayebe test class name and a small uuid part.
+      return "testpods";
+  }
+
   /** Creates the namespace in the cluster if it doesn't already exist. */
   public void create() {
     if (created) {
@@ -27,8 +35,7 @@ public class TestNamespace implements Closeable {
 
     Namespace existing = cluster.getClient().namespaces().withName(name).get();
     if (existing == null) {
-      Namespace ns =
-          new NamespaceBuilder().withNewMetadata().withName(name).endMetadata().build();
+      Namespace ns = new NamespaceBuilder().withNewMetadata().withName(name).endMetadata().build();
       cluster.getClient().namespaces().resource(ns).create();
     }
     created = true;

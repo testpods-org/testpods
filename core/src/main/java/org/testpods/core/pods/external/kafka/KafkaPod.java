@@ -1,13 +1,11 @@
 package org.testpods.core.pods.external.kafka;
 
 import io.fabric8.kubernetes.api.model.Container;
-import org.testpods.core.pods.PropertyContext;
-import org.testpods.core.pods.StatefulSetPod;
-import org.testpods.core.pods.TestNamespace;
-import org.testpods.core.pods.TestPod;
-import org.testpods.core.wait.WaitStrategy;
-
 import java.util.Map;
+import org.testpods.core.PropertyContext;
+import org.testpods.core.pods.StatefulSetPod;
+import org.testpods.core.TestNamespace;
+import org.testpods.core.wait.WaitStrategy;
 
 public class KafkaPod extends StatefulSetPod<KafkaPod> {
     @Override
