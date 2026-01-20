@@ -1,4 +1,4 @@
-package org.testpods.core;
+package org.testpods.core.cluster;
 
 import java.util.Locale;
 import java.util.concurrent.ThreadLocalRandom;

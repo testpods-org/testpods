@@ -3,7 +3,7 @@ package org.testpods.core.pods;
 import io.fabric8.kubernetes.api.model.PodSpecBuilder;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
-import org.testpods.core.TestNamespace;
+import org.testpods.core.cluster.TestNamespace;
 import org.testpods.core.builders.InitContainerBuilder;
 import org.testpods.core.builders.SidecarBuilder;
 import org.testpods.core.cluster.K8sCluster;
@@ -44,7 +44,7 @@ public interface TestPod<SELF extends TestPod<SELF>> {
      * Deploy this pod into a namespace with the specified name.
      * <p>
      * The cluster will be resolved automatically via {@link K8sCluster#discover()}
-     * or from {@link org.testpods.core.TestPodDefaults} if configured.
+     * or from {@link TestPodDefaults} if configured.
      * <p>
      * The namespace will be created if it doesn't exist when {@link #start()} is called.
      *
@@ -56,7 +56,7 @@ public interface TestPod<SELF extends TestPod<SELF>> {
      * Deploy this pod into the specified cluster.
      * <p>
      * A default namespace will be created automatically when {@link #start()} is called.
-     * The namespace name will be resolved from {@link org.testpods.core.TestPodDefaults}
+     * The namespace name will be resolved from {@link TestPodDefaults}
      * or generated as {@code testpods-xxxxx}.
      *
      * @param cluster The cluster to deploy into

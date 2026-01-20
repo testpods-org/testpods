@@ -1,9 +1,8 @@
-package org.testpods.core;
+package org.testpods.core.cluster;
 
 import io.fabric8.kubernetes.api.model.Namespace;
 import io.fabric8.kubernetes.api.model.NamespaceBuilder;
 import java.io.Closeable;
-import org.testpods.core.cluster.K8sCluster;
 
 /** A Kubernetes namespace for running test pods. */
 public class TestNamespace implements Closeable {

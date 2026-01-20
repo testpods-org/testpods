@@ -1,6 +1,8 @@
-package org.testpods.core;
+package org.testpods.core.pods;
 
 import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.NamespaceNaming;
+import org.testpods.core.cluster.TestNamespace;
 
 import java.util.function.Supplier;
 

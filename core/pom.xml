@@ -44,5 +44,12 @@
         <!-- External pods dependencies end -->
 
         <!-- Test dependencies -->
+
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>3.27.6</version>
+        </dependency>
+
     </dependencies>
 </project>

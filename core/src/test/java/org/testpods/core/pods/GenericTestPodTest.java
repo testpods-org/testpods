@@ -6,7 +6,7 @@ import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.ServiceResource;
 import org.junit.jupiter.api.Test;
-import org.testpods.core.TestNamespace;
+import org.testpods.core.cluster.TestNamespace;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.cluster.client.MinikubeCluster;
 import org.testpods.core.wait.WaitStrategy;
