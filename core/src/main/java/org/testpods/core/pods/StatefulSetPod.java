@@ -117,7 +117,10 @@ public abstract class StatefulSetPod<SELF extends StatefulSetPod<SELF>> extends 
 
     @Override
     public void start() {
-        // Ensure namespace is created
+        // Resolve namespace lazily if not explicitly set
+        ensureNamespace();
+
+        // Ensure namespace is created in cluster
         if (!namespace.isCreated()) {
             namespace.create();
         }

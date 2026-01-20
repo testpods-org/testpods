@@ -8,8 +8,10 @@ import io.fabric8.kubernetes.client.dsl.PodResource;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.TestNamespace;
+import org.testpods.core.TestPodDefaults;
 import org.testpods.core.builders.InitContainerBuilder;
 import org.testpods.core.builders.SidecarBuilder;
+import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.wait.WaitStrategy;
 
 import java.io.ByteArrayOutputStream;
@@ -62,6 +64,10 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
     protected String memoryRequest;
     protected WaitStrategy waitStrategy;
 
+    // Lazy initialization support - these are used when namespace is not explicitly set
+    protected K8sCluster explicitCluster;
+    protected String explicitNamespaceName;
+
     // =============================================================
     // Mid-level customizations
     // =============================================================
@@ -97,6 +103,18 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
     @Override
     public SELF inNamespace(TestNamespace namespace) {
         this.namespace = namespace;
+        return self();
+    }
+
+    @Override
+    public SELF inNamespace(String namespaceName) {
+        this.explicitNamespaceName = namespaceName;
+        return self();
+    }
+
+    @Override
+    public SELF inCluster(K8sCluster cluster) {
+        this.explicitCluster = cluster;
         return self();
     }
 
@@ -266,11 +284,56 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
     // =============================================================
 
     /**
+     * Ensure namespace is resolved before starting the pod.
+     * <p>
+     * This method implements lazy namespace initialization. It resolves the namespace
+     * using the following precedence:
+     * <ol>
+     *   <li>Explicit namespace set via {@link #inNamespace(TestNamespace)}</li>
+     *   <li>Shared namespace from {@link TestPodDefaults#getSharedNamespace()}</li>
+     *   <li>Create new namespace using explicit cluster + explicit name</li>
+     *   <li>Create new namespace using resolved cluster + resolved name from defaults</li>
+     * </ol>
+     * <p>
+     * This design allows JUnit extensions to configure defaults before tests run,
+     * enabling simplified TestPod creation without explicit namespace specification.
+     */
+    protected void ensureNamespace() {
+        // Already have explicit namespace
+        if (this.namespace != null) {
+            return;
+        }
+
+        // Check for shared namespace from TestPodDefaults (set by JUnit extension)
+        TestNamespace shared = TestPodDefaults.getSharedNamespace();
+        if (shared != null) {
+            this.namespace = shared;
+            return;
+        }
+
+        // Resolve cluster
+        K8sCluster cluster = this.explicitCluster;
+        if (cluster == null) {
+            cluster = TestPodDefaults.resolveCluster();
+        }
+
+        // Resolve namespace name
+        String nsName = this.explicitNamespaceName;
+        if (nsName == null) {
+            nsName = TestPodDefaults.resolveNamespaceName();
+        }
+
+        // Create the namespace
+        this.namespace = new TestNamespace(cluster, nsName);
+    }
+
+    /**
      * Get the Kubernetes client from the namespace's cluster.
      */
     protected KubernetesClient getClient() {
         if (namespace == null) {
-            throw new IllegalStateException("Namespace not set. Call inNamespace() first.");
+            throw new IllegalStateException(
+                "Namespace not resolved. Call ensureNamespace() in start() before using getClient().");
         }
         return namespace.getCluster().getClient();
     }

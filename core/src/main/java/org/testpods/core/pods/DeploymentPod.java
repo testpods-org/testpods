@@ -102,7 +102,10 @@ public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends Ba
 
     @Override
     public void start() {
-        // Ensure namespace is created
+        // Resolve namespace lazily if not explicitly set
+        ensureNamespace();
+
+        // Ensure namespace is created in cluster
         if (!namespace.isCreated()) {
             namespace.create();
         }
