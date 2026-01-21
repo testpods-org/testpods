@@ -115,6 +115,19 @@
     - [20.2. Session 2: Project Structure and Development Approach](20_brainstorming_notes.md#202-session-2-project-structure-and-development-approach)
     - [20.3. Session 3: Advanced Multi-Service Integration Testing](20_brainstorming_notes.md#203-session-3-advanced-multi-service-integration-testing)
     - [20.4. Session 4: Platform Layer and Kubernetes Operators](20_brainstorming_notes.md#204-session-4-platform-layer-and-kubernetes-operators)
+  - [21. Test API Design Decisions](21_test_api_design_decisions.md)
+    - [21.1. Overview](21_test_api_design_decisions.md#211-overview)
+    - [21.2. Core API Style](21_test_api_design_decisions.md#212-core-api-style)
+    - [21.3. Field Scope and Lifecycle](21_test_api_design_decisions.md#213-field-scope-and-lifecycle)
+    - [21.4. Startup Order and Dependencies](21_test_api_design_decisions.md#214-startup-order-and-dependencies)
+    - [21.5. Connection Information](21_test_api_design_decisions.md#215-connection-information)
+    - [21.6. TestPodGroup and TestPodCatalog](21_test_api_design_decisions.md#216-testpodgroup-and-testpodcatalog)
+    - [21.7. PropertyContext](21_test_api_design_decisions.md#217-propertycontext)
+    - [21.8. Namespace Management](21_test_api_design_decisions.md#218-namespace-management)
+    - [21.9. Error Handling and Debugging](21_test_api_design_decisions.md#219-error-handling-and-debugging)
+    - [21.10. JUnit Integration Details](21_test_api_design_decisions.md#2110-junit-integration-details)
+    - [21.11. Concrete Pod Implementations](21_test_api_design_decisions.md#2111-concrete-pod-implementations)
+    - [21.12. Implementation Priority](21_test_api_design_decisions.md#2112-implementation-priority)
 <!-- /TOC -->
 
 ---
@@ -143,3 +156,4 @@
 | 18 | [Open Questions](18_open_questions_and_discussion_points.md) | Technical and design decisions |
 | 19 | [Appendices](19_appendices.md) | Comparisons, references, glossary |
 | 20 | [Brainstorming Notes](20_brainstorming_notes.md) | Session notes and discussions |
+| 21 | [Test API Design Decisions](21_test_api_design_decisions.md) | JUnit integration API design decisions from interview |
