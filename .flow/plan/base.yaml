@@ -1,0 +1,103 @@
+# Configuration for spec plan planning flows
+# Creating, reviewing, and refining specification plans before implementation
+
+base_config: .flow/base.yaml
+flow_type: plan
+
+# Agent interface: claude_code_cli or opencode
+agent_interface: opencode
+
+# OpenCode-specific configuration
+opencode:
+  server_hostname: 127.0.0.1
+
+# Spec plan parsing configuration
+spec_plan:
+  top_level_end_marker: "## Implementation Steps"
+  step_header_pattern: "^### Status: ([^|]*) \\| Step (\\d+): (.+)$"
+
+# Completion workflow configuration
+completion_workflow:
+  template: "@.flow/templates/planning-completion-workflow-template.md"
+  report:
+    filename: report.md
+    success_suffix: .complete.md
+    failure_suffix: .failed.md
+
+# Shared files
+shared_files:
+  # Writable shared files - context that accumulates across agents in a flow
+  planning_log:
+    path: "{flow_dir}/{flow_name}/planning-log.md"
+    info: "Accumulated planning decisions, clarifications, and context. Read this to understand planning context and decisions made."
+    writable: true
+    write_template: "@.flow/templates/planning-log-template.md"
+
+  # Read-only shared files - architectural context for planning
+  architecture_guide:
+    path: "rules_and_guides/architecture-guide.md"
+    info: "Layered architecture (types/lib/commands/interfaces), key files impact matrix. Essential for knowing WHERE things should go."
+    agents:
+      - plan-creator
+      - plan-reviewer
+
+  common_policies:
+    path: "rules_and_guides/common-policies.md"
+    info: "Architectural constraints: no legacy/backwards compatibility code, LSP compliance, no dual code paths. Plans must account for these rules."
+    agents:
+      - plan-creator
+      - plan-reviewer
+
+  code_duplication_rules:
+    path: "rules_and_guides/code-duplication-rules.md"
+    info: "Principle of reusing existing utilities from flow/lib/. Plans should direct to existing utilities rather than new implementations."
+    agents:
+      - plan-creator
+      - plan-reviewer
+
+  documentation_updates:
+    path: "rules_and_guides/documentation_updates.md"
+    info: "Documentation files that must be updated. Plans should include documentation update steps where relevant."
+    agents:
+      - plan-creator
+      - plan-reviewer
+
+  cli_patterns:
+    path: "rules_and_guides/cli-patterns.md"
+    info: "CLI patterns: Click command structure, shared argument handling, Rich/Textual output. Helps plan CLI feature organization."
+    agents:
+      - plan-creator
+      - plan-reviewer
+
+  test_patterns:
+    path: "rules_and_guides/test-patterns.md"
+    info: "Test organization: unit/integration/e2e categories, fixture patterns. Plans should specify appropriate test coverage."
+    agents:
+      - plan-creator
+      - plan-reviewer
+
+  uv_scripts:
+    path: "rules_and_guides/uv-scripts.md"
+    info: "UV inline script format (PEP 723) for standalone Python scripts. Plans involving scripts should account for this."
+    agents:
+      - plan-creator
+      - plan-reviewer
+
+# Agent definitions for planning flows
+agents:
+  builder:
+    model: anthropic/sonnet
+    system_prompt: "@.claude/agents/builder.md"
+
+  reviewer:
+    model: anthropic/sonnet
+    system_prompt: "@.claude/agents/reviewer.md"
+
+  documentation-updater:
+    model: anthropic/sonnet
+    system_prompt: "@.claude/agents/documentation-updater.md"
+
+  documentation-reviewer:
+    model: anthropic/sonnet
+    system_prompt: "@.claude/agents/documentation-reviewer.md"
+

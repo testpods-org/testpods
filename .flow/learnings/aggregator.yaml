@@ -1,0 +1,22 @@
+# Flow configuration for learnings-aggregator
+# Runs on-demand to find patterns across accumulated learnings
+
+base_config: .flow/base.yaml
+flow_type: learnings
+
+# Agent interface
+agent_interface: claude_code_cli
+
+# Completion workflow configuration
+completion_workflow:
+  template: "@.flow/templates/completion-workflow-template.md"
+  report:
+    filename: report.md
+    success_suffix: .complete.md
+    failure_suffix: .failed.md
+
+# Agent definitions
+agents:
+  learnings-aggregator:
+    model: anthropic/opus
+    system_prompt: "@.flow/learnings/agents/learnings-aggregator.md"
