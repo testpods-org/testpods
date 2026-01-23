@@ -9,8 +9,8 @@ This folder contains detailed implementation plans for the refactoring tasks ide
 | 09 | [Fix Broken StatefulSetPod Methods](09-fix-broken-statefulsetpod-methods.md) | Critical | Small | 1 | ✅ Done |
 | 04 | [Fix Init Script ConfigMap Mount](04-fix-init-script-configmap-mount.md) | Critical | Small | 1 | ⏸️ Deferred |
 | 06 | [Add Consistent Error Handling](06-add-consistent-error-handling.md) | High | Small | 1 | ✅ Done |
-| 01 | [Extract WorkloadManager](01-extract-workload-manager.md) | High | Large | 2 | |
-| 02 | [Extract ServiceManager](02-extract-service-manager.md) | High | Medium | 2 | |
+| 01 | [Extract WorkloadManager](01-extract-workload-manager.md) | High | Large | 2 | ✅ Done |
+| 02 | [Extract ServiceManager](02-extract-service-manager.md) | High | Medium | 2 | ✅ Done |
 | 03 | [Extract StorageManager](03-extract-storage-manager.md) | High | Medium | 2 | |
 | 10 | [Create ContainerSpec Builder](10-create-container-spec-builder.md) | Medium | Medium | 3 | |
 | 05 | [Fix Statement Resource Leak](05-fix-statement-resource-leak.md) | Medium | Small | 4 | |
