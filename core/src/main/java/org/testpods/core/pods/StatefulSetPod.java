@@ -5,8 +5,10 @@ import io.fabric8.kubernetes.api.model.apps.StatefulSet;
 import io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.testpods.core.PropertyContext;
+import org.testpods.core.cluster.HostAndPort;
 import org.testpods.core.wait.WaitStrategy;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -55,6 +57,12 @@ public abstract class StatefulSetPod<SELF extends StatefulSetPod<SELF>> extends 
 
     protected StatefulSet statefulSet;
     protected Service service;
+
+    // =============================================================
+    // External access (set after start)
+    // =============================================================
+
+    protected volatile HostAndPort externalAccess;
 
     // =============================================================
     // Low-level customization methods
@@ -143,6 +151,11 @@ public abstract class StatefulSetPod<SELF extends StatefulSetPod<SELF>> extends 
 
         // Wait for ready
         waitForReady();
+
+        // Set external access info after pod is ready
+        this.externalAccess = namespace.getCluster()
+            .getAccessStrategy()
+            .getExternalEndpoint(this, getInternalPort());
     }
 
     @Override
@@ -206,20 +219,20 @@ public abstract class StatefulSetPod<SELF extends StatefulSetPod<SELF>> extends 
 
     @Override
     public String getExternalHost() {
-//        HostAndPort endpoint = namespace.getCluster()
-//            .getAccessStrategy()
-//            .getExternalEndpoint(this, getInternalPort());
-//        return endpoint.host();
-        return null;
+        if (externalAccess == null) {
+            throw new IllegalStateException(
+                "Pod '" + name + "' not started. Call start() before accessing external endpoint.");
+        }
+        return externalAccess.host();
     }
 
     @Override
     public int getExternalPort() {
-//        HostAndPort endpoint = namespace.getCluster()
-//            .getAccessStrategy()
-//            .getExternalEndpoint(this, getInternalPort());
-//        return endpoint.port();
-        return -1;
+        if (externalAccess == null) {
+            throw new IllegalStateException(
+                "Pod '" + name + "' not started. Call start() before accessing external endpoint.");
+        }
+        return externalAccess.port();
     }
 
     // =============================================================
@@ -228,9 +241,8 @@ public abstract class StatefulSetPod<SELF extends StatefulSetPod<SELF>> extends 
 
     @Override
     protected WaitStrategy getDefaultWaitStrategy() {
-//        return WaitStrategy.forReadinessProbe()
-//            .withTimeout(Duration.ofMinutes(2));
-        return null;
+        return WaitStrategy.forReadinessProbe()
+            .withTimeout(Duration.ofMinutes(2));
     }
 
     // =============================================================
