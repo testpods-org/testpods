@@ -3,7 +3,7 @@
 
 flow_type: _base
 flow_dir: flows
-default_branch: main
+default_branch: flow_test
 
 # Default timeouts (in seconds)
 defaults:
