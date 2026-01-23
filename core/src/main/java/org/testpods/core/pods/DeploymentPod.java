@@ -5,10 +5,12 @@ import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.KubernetesClientException;
 import org.testpods.core.PropertyContext;
+import org.testpods.core.TestPodStartException;
 import org.testpods.core.cluster.HostAndPort;
 import org.testpods.core.wait.WaitStrategy;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -42,6 +44,8 @@ import java.util.function.UnaryOperator;
  * @param <SELF> The concrete type for fluent method chaining
  */
 public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends BaseTestPod<SELF> {
+
+    private static final Logger LOG = LoggerFactory.getLogger(DeploymentPod.class);
 
     // =============================================================
     // Low-level customizers
@@ -111,33 +115,55 @@ public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends Ba
         }
 
         KubernetesClient client = getClient();
-
-        // Build and create Deployment
-        this.deployment = buildDeployment();
-        client.apps().deployments()
-            .inNamespace(namespace.getName())
-            .resource(deployment)
-            .create();
-
-        // Build and create Service
-        this.service = buildService();
-        client.services()
-            .inNamespace(namespace.getName())
-            .resource(service)
-            .create();
+        String ns = namespace.getName();
 
         try {
+            // Build and create Deployment
+            this.deployment = buildDeployment();
+            client.apps().deployments()
+                .inNamespace(ns)
+                .resource(deployment)
+                .create();
+
+            // Build and create Service
+            this.service = buildService();
+            client.services()
+                .inNamespace(ns)
+                .resource(service)
+                .create();
+
             // Wait for ready
             waitForReady();
-        } catch (Exception e) {
-            final List<StatusDetails> delete = client.services().delete();
-            delete.forEach(status -> {System.out.println(status.toString());
-                        });
 
-            final List<StatusDetails> deploymentDelete = client.apps().deployments().inNamespace(namespace.getName())
-                    .withName(name).delete();
-            deploymentDelete.forEach(status -> {System.out.println(status.toString());});
+        } catch (Exception e) {
+            LOG.warn("Start failed for pod '{}', cleaning up resources", name);
+            cleanup(client, ns);
+            throw new TestPodStartException(name, e.getMessage(), e);
         }
+    }
+
+    private void cleanup(KubernetesClient client, String ns) {
+        // Delete in reverse order of creation
+        try {
+            if (service != null) {
+                client.services().inNamespace(ns).withName(name).delete();
+                LOG.debug("Deleted service: {}", name);
+            }
+        } catch (Exception e) {
+            LOG.debug("Failed to delete service '{}': {}", name, e.getMessage());
+        }
+
+        try {
+            if (deployment != null) {
+                client.apps().deployments().inNamespace(ns).withName(name).delete();
+                LOG.debug("Deleted deployment: {}", name);
+            }
+        } catch (Exception e) {
+            LOG.debug("Failed to delete deployment '{}': {}", name, e.getMessage());
+        }
+
+        this.service = null;
+        this.deployment = null;
     }
 
     @Override
