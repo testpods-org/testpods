@@ -13,10 +13,9 @@ Testpods is a Java testing library that enables developers to write integration 
 
 ## 1.2. Problem Statement
 
-Current integration testing approaches using Testcontainers provide excellent Docker-based testing but don't capture the complexities of Kubernetes deployments including:
+Current integration testing approaches using Testcontainers provide excellent Docker-based testing but don't capture the many complexities of Kubernetes deployments including:
 - Pod networking and service discovery
 - ConfigMaps and Secrets management
-- Resource constraints and scheduling
 - Multi-container pod configurations
 - Kubernetes-specific failure modes
 

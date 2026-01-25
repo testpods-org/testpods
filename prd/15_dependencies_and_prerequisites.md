@@ -11,7 +11,7 @@
 1. **Minikube**: Version 1.30+ installed and configured
 2. **Container Runtime**: Docker Desktop or containerd on macOS
 3. **kubectl**: For potential manual debugging
-4. **Java**: JDK 11+ (recommend 17 LTS)
+4. **Java**: JDK 17+ (recommend 21 LTS)
 5. **Hypervisor**: Docker Desktop VM or Hyperkit on macOS
 
 ## 15.2. Library Dependencies (to be determined)

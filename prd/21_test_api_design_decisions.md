@@ -234,7 +234,7 @@ orderService.withEnv("DATABASE_URL", "${postgres.internal.uri}");
 
 ### 21.8.1. Default Behavior
 
-- One namespace per test class
+- One namespace per test class. Support multiple namespaces in the future
 - Random suffix for parallel execution safety: `testpods-{context}-{5chars}`
 - Deleted after test class completes
 
@@ -301,7 +301,7 @@ JUnit 5 (current). Migrate to JUnit 6 when released.
 @BeforeAll (TestPodsExtension)
 ├── Discover @Pod fields
 ├── Build dependency graph
-├── Create namespace (random suffix)
+├── Create namespaces (random suffix)
 ├── Start groups/pods (respecting dependencies, parallel where allowed)
 ├── Populate PropertyContext
 └── Ready for test methods
