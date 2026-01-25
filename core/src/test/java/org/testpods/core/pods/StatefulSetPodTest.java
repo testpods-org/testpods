@@ -4,14 +4,11 @@ import static org.assertj.core.api.Assertions.*;
 
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
-import io.fabric8.kubernetes.api.model.ContainerPort;
 import io.fabric8.kubernetes.api.model.ContainerPortBuilder;
 import org.junit.jupiter.api.Test;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.cluster.HostAndPort;
 import org.testpods.core.wait.WaitStrategy;
-
-import java.time.Duration;
 
 /**
  * Unit tests for StatefulSetPod.
