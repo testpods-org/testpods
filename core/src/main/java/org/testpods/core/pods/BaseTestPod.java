@@ -5,14 +5,6 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
 import io.fabric8.kubernetes.client.dsl.PodResource;
-import org.testpods.core.ExecResult;
-import org.testpods.core.PropertyContext;
-import org.testpods.core.cluster.TestNamespace;
-import org.testpods.core.builders.InitContainerBuilder;
-import org.testpods.core.builders.SidecarBuilder;
-import org.testpods.core.cluster.K8sCluster;
-import org.testpods.core.wait.WaitStrategy;
-
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -23,6 +15,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
+import org.testpods.core.ExecResult;
+import org.testpods.core.PropertyContext;
+import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.TestNamespace;
+import org.testpods.core.pods.builders.InitContainerBuilder;
+import org.testpods.core.pods.builders.SidecarBuilder;
+import org.testpods.core.wait.WaitStrategy;
 
 /**
  * Base implementation of {@link TestPod} providing common functionality.

@@ -4,8 +4,8 @@ import io.fabric8.kubernetes.api.model.PodSpecBuilder;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.cluster.TestNamespace;
-import org.testpods.core.builders.InitContainerBuilder;
-import org.testpods.core.builders.SidecarBuilder;
+import org.testpods.core.pods.builders.InitContainerBuilder;
+import org.testpods.core.pods.builders.SidecarBuilder;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.wait.WaitStrategy;
 

@@ -1,4 +1,4 @@
-package org.testpods.core.builders;
+package org.testpods.core.pods.builders;
 
 import io.fabric8.kubernetes.api.model.EnvVarBuilder;
 import io.fabric8.kubernetes.api.model.VolumeMount;

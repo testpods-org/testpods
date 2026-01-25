@@ -64,7 +64,7 @@ The mid-level API has `InitContainerBuilder` and `SidecarBuilder` but no equival
 ### ContainerSpec Builder
 
 ```java
-package org.testpods.core.builders;
+package org.testpods.core.pods.builders;
 
 import io.fabric8.kubernetes.api.model.*;
 
@@ -124,16 +124,16 @@ public class ContainerSpec {
 
     public ContainerSpec withPort(int port) {
         this.ports.add(new ContainerPortBuilder()
-            .withContainerPort(port)
-            .build());
+                .withContainerPort(port)
+                .build());
         return this;
     }
 
     public ContainerSpec withPort(int port, String name) {
         this.ports.add(new ContainerPortBuilder()
-            .withContainerPort(port)
-            .withName(name)
-            .build());
+                .withContainerPort(port)
+                .withName(name)
+                .build());
         return this;
     }
 
@@ -146,26 +146,26 @@ public class ContainerSpec {
 
     public ContainerSpec withEnvFrom(String configMapName) {
         this.envVars.add(new EnvVarBuilder()
-            .withName(configMapName)
-            .withNewValueFrom()
+                .withName(configMapName)
+                .withNewValueFrom()
                 .withNewConfigMapKeyRef()
-                    .withName(configMapName)
+                .withName(configMapName)
                 .endConfigMapKeyRef()
-            .endValueFrom()
-            .build());
+                .endValueFrom()
+                .build());
         return this;
     }
 
     public ContainerSpec withSecretEnv(String name, String secretName, String key) {
         this.envVars.add(new EnvVarBuilder()
-            .withName(name)
-            .withNewValueFrom()
+                .withName(name)
+                .withNewValueFrom()
                 .withNewSecretKeyRef()
-                    .withName(secretName)
-                    .withKey(key)
+                .withName(secretName)
+                .withKey(key)
                 .endSecretKeyRef()
-            .endValueFrom()
-            .build());
+                .endValueFrom()
+                .build());
         return this;
     }
 
@@ -185,18 +185,18 @@ public class ContainerSpec {
 
     public ContainerSpec withVolumeMount(String name, String mountPath) {
         this.volumeMounts.add(new VolumeMountBuilder()
-            .withName(name)
-            .withMountPath(mountPath)
-            .build());
+                .withName(name)
+                .withMountPath(mountPath)
+                .build());
         return this;
     }
 
     public ContainerSpec withVolumeMount(String name, String mountPath, boolean readOnly) {
         this.volumeMounts.add(new VolumeMountBuilder()
-            .withName(name)
-            .withMountPath(mountPath)
-            .withReadOnly(readOnly)
-            .build());
+                .withName(name)
+                .withMountPath(mountPath)
+                .withReadOnly(readOnly)
+                .build());
         return this;
     }
 
@@ -227,9 +227,9 @@ public class ContainerSpec {
 
     public ContainerSpec withResources(String cpuRequest, String memoryRequest) {
         this.resources = new ResourceRequirementsBuilder()
-            .addToRequests("cpu", new Quantity(cpuRequest))
-            .addToRequests("memory", new Quantity(memoryRequest))
-            .build();
+                .addToRequests("cpu", new Quantity(cpuRequest))
+                .addToRequests("memory", new Quantity(memoryRequest))
+                .build();
         return this;
     }
 
@@ -255,17 +255,17 @@ public class ContainerSpec {
 
     public Container build() {
         ContainerBuilder builder = new ContainerBuilder()
-            .withName(name)
-            .withImage(image)
-            .withPorts(ports)
-            .withVolumeMounts(volumeMounts);
+                .withName(name)
+                .withImage(image)
+                .withPorts(ports)
+                .withVolumeMounts(volumeMounts);
 
         // Add simple env vars
         for (Map.Entry<String, String> entry : env.entrySet()) {
             builder.addNewEnv()
-                .withName(entry.getKey())
-                .withValue(entry.getValue())
-                .endEnv();
+                    .withName(entry.getKey())
+                    .withValue(entry.getValue())
+                    .endEnv();
         }
 
         // Add complex env vars
@@ -303,7 +303,7 @@ public class ContainerSpec {
 ### ProbeSpec Builder
 
 ```java
-package org.testpods.core.builders;
+package org.testpods.core.pods.builders;
 
 /**
  * Fluent builder for Kubernetes probes.
@@ -360,25 +360,25 @@ public class ProbeSpec {
 
     public Probe build() {
         ProbeBuilder builder = new ProbeBuilder()
-            .withInitialDelaySeconds(initialDelaySeconds)
-            .withPeriodSeconds(periodSeconds)
-            .withTimeoutSeconds(timeoutSeconds)
-            .withFailureThreshold(failureThreshold)
-            .withSuccessThreshold(successThreshold);
+                .withInitialDelaySeconds(initialDelaySeconds)
+                .withPeriodSeconds(periodSeconds)
+                .withTimeoutSeconds(timeoutSeconds)
+                .withFailureThreshold(failureThreshold)
+                .withSuccessThreshold(successThreshold);
 
         if (tcpPort != null) {
             builder.withNewTcpSocket()
-                .withNewPort(tcpPort)
-                .endTcpSocket();
+                    .withNewPort(tcpPort)
+                    .endTcpSocket();
         } else if (httpPort != null) {
             builder.withNewHttpGet()
-                .withPort(new IntOrString(httpPort))
-                .withPath(httpPath)
-                .endHttpGet();
+                    .withPort(new IntOrString(httpPort))
+                    .withPath(httpPath)
+                    .endHttpGet();
         } else if (execCommand != null) {
             builder.withNewExec()
-                .withCommand(execCommand)
-                .endExec();
+                    .withCommand(execCommand)
+                    .endExec();
         }
 
         return builder.build();

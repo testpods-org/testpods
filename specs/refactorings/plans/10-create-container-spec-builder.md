@@ -122,9 +122,10 @@ protected Container buildMainContainer() {
 ### ContainerSpec.java
 
 ```java
-package org.testpods.core.builders;
+package org.testpods.core.pods.builders;
 
 import io.fabric8.kubernetes.api.model.*;
+
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
@@ -180,16 +181,16 @@ public class ContainerSpec {
 
     public ContainerSpec withPort(int port) {
         this.ports.add(new ContainerPortBuilder()
-            .withContainerPort(port)
-            .build());
+                .withContainerPort(port)
+                .build());
         return this;
     }
 
     public ContainerSpec withPort(int port, String name) {
         this.ports.add(new ContainerPortBuilder()
-            .withContainerPort(port)
-            .withName(name)
-            .build());
+                .withContainerPort(port)
+                .withName(name)
+                .build());
         return this;
     }
 
@@ -202,27 +203,27 @@ public class ContainerSpec {
 
     public ContainerSpec withEnvFrom(String configMapName, String key) {
         this.envVars.add(new EnvVarBuilder()
-            .withName(key)
-            .withNewValueFrom()
+                .withName(key)
+                .withNewValueFrom()
                 .withNewConfigMapKeyRef()
-                    .withName(configMapName)
-                    .withKey(key)
+                .withName(configMapName)
+                .withKey(key)
                 .endConfigMapKeyRef()
-            .endValueFrom()
-            .build());
+                .endValueFrom()
+                .build());
         return this;
     }
 
     public ContainerSpec withSecretEnv(String envName, String secretName, String key) {
         this.envVars.add(new EnvVarBuilder()
-            .withName(envName)
-            .withNewValueFrom()
+                .withName(envName)
+                .withNewValueFrom()
                 .withNewSecretKeyRef()
-                    .withName(secretName)
-                    .withKey(key)
+                .withName(secretName)
+                .withKey(key)
                 .endSecretKeyRef()
-            .endValueFrom()
-            .build());
+                .endValueFrom()
+                .build());
         return this;
     }
 
@@ -242,18 +243,18 @@ public class ContainerSpec {
 
     public ContainerSpec withVolumeMount(String name, String mountPath) {
         this.volumeMounts.add(new VolumeMountBuilder()
-            .withName(name)
-            .withMountPath(mountPath)
-            .build());
+                .withName(name)
+                .withMountPath(mountPath)
+                .build());
         return this;
     }
 
     public ContainerSpec withVolumeMount(String name, String mountPath, boolean readOnly) {
         this.volumeMounts.add(new VolumeMountBuilder()
-            .withName(name)
-            .withMountPath(mountPath)
-            .withReadOnly(readOnly)
-            .build());
+                .withName(name)
+                .withMountPath(mountPath)
+                .withReadOnly(readOnly)
+                .build());
         return this;
     }
 
@@ -284,21 +285,21 @@ public class ContainerSpec {
 
     public ContainerSpec withResources(String cpuRequest, String memoryRequest) {
         this.resources = new ResourceRequirementsBuilder()
-            .addToRequests("cpu", new Quantity(cpuRequest))
-            .addToRequests("memory", new Quantity(memoryRequest))
-            .build();
+                .addToRequests("cpu", new Quantity(cpuRequest))
+                .addToRequests("memory", new Quantity(memoryRequest))
+                .build();
         return this;
     }
 
     public ContainerSpec withResourceLimits(String cpuLimit, String memoryLimit) {
         ResourceRequirementsBuilder builder = this.resources != null
-            ? new ResourceRequirementsBuilder(this.resources)
-            : new ResourceRequirementsBuilder();
+                ? new ResourceRequirementsBuilder(this.resources)
+                : new ResourceRequirementsBuilder();
 
         this.resources = builder
-            .addToLimits("cpu", new Quantity(cpuLimit))
-            .addToLimits("memory", new Quantity(memoryLimit))
-            .build();
+                .addToLimits("cpu", new Quantity(cpuLimit))
+                .addToLimits("memory", new Quantity(memoryLimit))
+                .build();
         return this;
     }
 
@@ -324,17 +325,17 @@ public class ContainerSpec {
         Objects.requireNonNull(image, "Container image is required");
 
         ContainerBuilder builder = new ContainerBuilder()
-            .withName(name)
-            .withImage(image)
-            .withPorts(ports)
-            .withVolumeMounts(volumeMounts);
+                .withName(name)
+                .withImage(image)
+                .withPorts(ports)
+                .withVolumeMounts(volumeMounts);
 
         // Add simple env vars
         for (Map.Entry<String, String> entry : env.entrySet()) {
             builder.addNewEnv()
-                .withName(entry.getKey())
-                .withValue(entry.getValue())
-                .endEnv();
+                    .withName(entry.getKey())
+                    .withValue(entry.getValue())
+                    .endEnv();
         }
 
         // Add complex env vars
@@ -379,7 +380,7 @@ public class ContainerSpec {
 ### ProbeSpec.java
 
 ```java
-package org.testpods.core.builders;
+package org.testpods.core.pods.builders;
 
 import io.fabric8.kubernetes.api.model.*;
 
@@ -516,26 +517,26 @@ public class ProbeSpec {
 
     public Probe build() {
         ProbeBuilder builder = new ProbeBuilder()
-            .withInitialDelaySeconds(initialDelaySeconds)
-            .withPeriodSeconds(periodSeconds)
-            .withTimeoutSeconds(timeoutSeconds)
-            .withFailureThreshold(failureThreshold)
-            .withSuccessThreshold(successThreshold);
+                .withInitialDelaySeconds(initialDelaySeconds)
+                .withPeriodSeconds(periodSeconds)
+                .withTimeoutSeconds(timeoutSeconds)
+                .withFailureThreshold(failureThreshold)
+                .withSuccessThreshold(successThreshold);
 
         if (tcpPort != null) {
             builder.withNewTcpSocket()
-                .withNewPort(tcpPort)
-                .endTcpSocket();
+                    .withNewPort(tcpPort)
+                    .endTcpSocket();
         } else if (httpPort != null) {
             builder.withNewHttpGet()
-                .withPort(new IntOrString(httpPort))
-                .withPath(httpPath != null ? httpPath : "/")
-                .withScheme(httpScheme)
-                .endHttpGet();
+                    .withPort(new IntOrString(httpPort))
+                    .withPath(httpPath != null ? httpPath : "/")
+                    .withScheme(httpScheme)
+                    .endHttpGet();
         } else if (execCommand != null) {
             builder.withNewExec()
-                .withCommand(execCommand)
-                .endExec();
+                    .withCommand(execCommand)
+                    .endExec();
         }
 
         return builder.build();
