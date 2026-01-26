@@ -5,19 +5,17 @@ import static org.junit.jupiter.api.Assertions.*;
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.dsl.ServiceResource;
+import java.io.IOException;
 import org.junit.jupiter.api.Test;
-import org.testpods.core.cluster.TestNamespace;
 import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.TestNamespace;
 import org.testpods.core.cluster.client.MinikubeCluster;
 import org.testpods.core.wait.WaitStrategy;
-
-import java.io.IOException;
 
 class GenericTestPodTest {
 
   /**
-   * Original verbose approach - explicit cluster and namespace.
-   * Still supported for full control.
+   * Original verbose approach - explicit cluster and namespace. Still supported for full control.
    */
   @Test
   public void explicitClusterAndNamespace() throws IOException {
@@ -44,18 +42,19 @@ class GenericTestPodTest {
   }
 
   /**
-   * Simplified approach - auto-discovers cluster, auto-generates namespace.
-   * Similar to TestContainers simplicity.
+   * Simplified approach - auto-discovers cluster, auto-generates namespace. Similar to
+   * TestContainers simplicity.
    */
   @Test
   public void simplifiedAutoDiscover() {
-    GenericTestPod nginx = new GenericTestPod("nginx:1.25")
-        .withPort(80)
-        .withName("nginx")
-        .waitingFor(WaitStrategy.forPort(80));
+    GenericTestPod nginx =
+        new GenericTestPod("nginx:1.25")
+            .withPort(80)
+            .withName("nginx")
+            .waitingFor(WaitStrategy.forPort(80));
 
     try {
-      nginx.start();  // Auto-discovers cluster, creates namespace
+      nginx.start(); // Auto-discovers cluster, creates namespace
 
       assertTrue(nginx.isRunning());
       assertNotNull(nginx.getNamespace());
@@ -75,21 +74,20 @@ class GenericTestPodTest {
     }
   }
 
-  /**
-   * Intermediate approach - explicit cluster, auto-generated namespace.
-   */
+  /** Intermediate approach - explicit cluster, auto-generated namespace. */
   @Test
   public void explicitClusterAutoNamespace() throws IOException {
     K8sCluster cluster = K8sCluster.minikube();
 
-    GenericTestPod nginx = new GenericTestPod("nginx:1.25")
-        .withPort(80)
-        .withName("nginx")
-        .waitingFor(WaitStrategy.forPort(80))
-        .inCluster(cluster);
+    GenericTestPod nginx =
+        new GenericTestPod("nginx:1.25")
+            .withPort(80)
+            .withName("nginx")
+            .waitingFor(WaitStrategy.forPort(80))
+            .inCluster(cluster);
 
     try {
-      nginx.start();  // Creates namespace automatically
+      nginx.start(); // Creates namespace automatically
 
       assertTrue(nginx.isRunning());
       assertNotNull(nginx.getNamespace());
@@ -103,19 +101,18 @@ class GenericTestPodTest {
     }
   }
 
-  /**
-   * Intermediate approach - auto-discover cluster, explicit namespace name.
-   */
+  /** Intermediate approach - auto-discover cluster, explicit namespace name. */
   @Test
   public void autoClusterExplicitNamespaceName() {
-    GenericTestPod nginx = new GenericTestPod("nginx:1.25")
-        .withPort(80)
-        .withName("nginx")
-        .waitingFor(WaitStrategy.forPort(80))
-        .inNamespace("my-test-namespace");
+    GenericTestPod nginx =
+        new GenericTestPod("nginx:1.25")
+            .withPort(80)
+            .withName("nginx")
+            .waitingFor(WaitStrategy.forPort(80))
+            .inNamespace("my-test-namespace");
 
     try {
-      nginx.start();  // Auto-discovers cluster, uses specified namespace name
+      nginx.start(); // Auto-discovers cluster, uses specified namespace name
 
       assertTrue(nginx.isRunning());
       assertEquals("my-test-namespace", nginx.getNamespace().getName());
@@ -135,9 +132,6 @@ class GenericTestPodTest {
 
   private static ServiceResource<Service> getServiceResource(
       KubernetesClient client, TestNamespace namespace, GenericTestPod pod) {
-    return client
-        .services()
-        .inNamespace(namespace.getName())
-        .withName(pod.getName());
+    return client.services().inNamespace(namespace.getName()).withName(pod.getName());
   }
 }

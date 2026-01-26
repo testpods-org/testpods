@@ -827,6 +827,29 @@ agents:
 4. Provider default (200k for Anthropic, 128k for OpenAI)
 5. Global fallback (200k tokens)
 
+##### `description`
+
+**Type:** `string`
+**Default:** `null`
+**Required:** No
+
+A description of the agent's role and responsibilities. When provided, this description appears in the agent's system prompt identity section as a "Role:" line, helping the agent understand its specific role within the flow.
+
+This is particularly useful for clarifying agent boundaries (e.g., "read-only review, never modifies files") and handoff responsibilities (e.g., "the reviewer validates your work").
+
+```yaml
+agents:
+  builder:
+    description: "Implements code changes following the spec plan. The reviewer validates your work."
+    model: anthropic/opus
+    system_prompt: "@.claude/agents/builder.md"
+
+  reviewer:
+    description: "Validates code changes (read-only review). Never modifies source files directly."
+    model: anthropic/sonnet
+    system_prompt: "@.claude/agents/reviewer.md"
+```
+
 ##### `declared_artifacts`
 
 **Type:** `list[object]`
@@ -1102,7 +1125,7 @@ agents:
     mcp_config: .mcp-dev.json
 
   plan-reviewer:
-    model: anthropic/claude-haiku-4-5
+    model: anthropic/claude-opus-4-5
     system_prompt: .claude/agents/plan-reviewer.md
 ```
 
@@ -1117,7 +1140,7 @@ defaults:
 
 agents:
   quick-builder:
-    model: anthropic/haiku
+    model: anthropic/haiku-4-5
     system_prompt: .claude/agents/builder.md
 ```
 

@@ -51,27 +51,38 @@ flow scaffold --non-interactive
 
 This creates two folders:
 
-**`.flow/`** - All flow-related files in one place:
+**`.flow/`** - Generic infrastructure that works in any project:
 
 - `base.yaml` - Project-wide config
-- `{implement,plan}/base.yaml` - Flow-type configs
 - `templates/*.md` - Workflow templates
-- `scripts/flows/*.py` - Orchestration scripts (if `--include-scripts`)
+- `scripts/flows/lib/*.py` - Utility modules (if `--include-scripts`)
 - `learnings/` - Learnings system (if `--include-learnings`)
 - `proof/` - Proof generation system (if `--include-proof`)
 
-**`.claude/skills/flow-cli/`** - Claude Code skill for learning and extending the system:
+**`.claude/skills/flow-cli/`** - Claude Code skill with documentation and examples:
 
-- Documentation and examples for writing orchestration scripts
-- Contextual help for Claude Code users
+- Getting started guide for project-specific setup
+- Documentation for writing orchestration scripts
+- Working examples from the flow-cli repository
+
+After scaffolding completes, a **kick-starter prompt** is printed. Paste this prompt into your coding agent (Claude Code) to begin guided setup, which creates project-specific configuration (flow configs, agent discovery, orchestration scripts).
 
 The Claude Code skill is the **recommended entry point** for learning how to use the flow system. For Claude Code users, ask the skill for help with writing or modifying flow scripts.
 
 **Network Requirement:** The scaffold command fetches template files from GitHub at runtime, requiring an active internet connection.
 
-### Step 3: Write Orchestration Scripts
+### Step 3: Complete Guided Setup
 
-Create UV inline scripts that use the Python API. If you scaffolded with `--include-scripts`, you'll find examples in `.flow/scripts/flows/`. The Claude Code skill also includes documentation and examples for writing orchestration scripts.
+After running `flow scaffold`, paste the kick-starter prompt into your coding agent. The agent will interview you about your project to create project-specific configuration:
+
+1. **Discover existing agents** - Find agents in your project (e.g., `.claude/agents/`)
+2. **Create new agents** - Optionally create builder, reviewer, or other agent types
+3. **Generate flow configs** - Create `.flow/implement/base.yaml` and similar configs
+4. **Create orchestration scripts** - Generate scripts tailored to your project
+
+### Step 4: Write Orchestration Scripts
+
+Create UV inline scripts that use the Python API. The guided setup can create initial scripts for you. The Claude Code skill includes documentation and working examples from the flow-cli repository.
 
 This is the recommended way to orchestrate flows:
 

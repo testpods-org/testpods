@@ -1,17 +1,15 @@
 package org.testpods.core.cluster;
 
+import io.fabric8.kubernetes.client.KubernetesClient;
+import java.io.Closeable;
 import org.testpods.core.cluster.client.ClusterException;
 import org.testpods.core.cluster.client.MinikubeCluster;
 
-import io.fabric8.kubernetes.client.KubernetesClient;
-
-import java.io.Closeable;
-
 /**
  * Abstraction for a Kubernetes cluster connection.
- * <p>
- * Provides access to the Kubernetes client and the strategy for external access
- * to services running in the cluster.
+ *
+ * <p>Provides access to the Kubernetes client and the strategy for external access to services
+ * running in the cluster.
  */
 public interface K8sCluster extends Closeable {
 
@@ -21,12 +19,13 @@ public interface K8sCluster extends Closeable {
 
   /**
    * Auto-discover an available Kubernetes cluster.
-   * <p>
-   * Discovery order:
+   *
+   * <p>Discovery order:
+   *
    * <ol>
-   *   <li>Minikube with "minikit" profile (if running)</li>
-   *   <li>Minikube with "minikube" profile (if running)</li>
-   *   <li>Additional cluster types will be added in future (Kind, etc.)</li>
+   *   <li>Minikube with "minikit" profile (if running)
+   *   <li>Minikube with "minikube" profile (if running)
+   *   <li>Additional cluster types will be added in future (Kind, etc.)
    * </ol>
    *
    * @return A connected K8sCluster
@@ -54,16 +53,12 @@ public interface K8sCluster extends Closeable {
         "No Kubernetes cluster found. Start minikube with: minikube start -p minikit");
   }
 
-  /**
-   * Create a K8sCluster connected to a Minikube cluster using the default profile ("minikit").
-   */
+  /** Create a K8sCluster connected to a Minikube cluster using the default profile ("minikit"). */
   static K8sCluster minikube() {
     return MinikubeCluster.create();
   }
 
-  /**
-   * Create a K8sCluster connected to a Minikube cluster using a specific profile.
-   */
+  /** Create a K8sCluster connected to a Minikube cluster using a specific profile. */
   static K8sCluster minikube(String profile) {
     return MinikubeCluster.withProfile(profile);
   }

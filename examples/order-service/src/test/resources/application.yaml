@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: order-service
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration
+      - org.springframework.boot.orm.jpa.autoconfigure.HibernateJpaAutoConfiguration
+      - org.springframework.boot.sql.init.autoconfigure.SqlInitializationAutoConfiguration
+  kafka:
+    bootstrap-servers: ${spring.embedded.kafka.brokers:localhost:9092}
+
+product-service:
+  base-url: http://localhost:8081

@@ -4,116 +4,97 @@ import static org.assertj.core.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 
-/**
- * Unit tests for CompositeServiceManager.
- */
+/** Unit tests for CompositeServiceManager. */
 class CompositeServiceManagerTest {
 
-    @Test
-    void shouldCreateWithMultipleManagers() {
-        CompositeServiceManager manager = new CompositeServiceManager(
-            new HeadlessServiceManager(),
-            new NodePortServiceManager()
-        );
+  @Test
+  void shouldCreateWithMultipleManagers() {
+    CompositeServiceManager manager =
+        new CompositeServiceManager(new HeadlessServiceManager(), new NodePortServiceManager());
 
-        assertThat(manager.size()).isEqualTo(2);
-    }
+    assertThat(manager.size()).isEqualTo(2);
+  }
 
-    @Test
-    void shouldReturnNullNameBeforeCreate() {
-        CompositeServiceManager manager = new CompositeServiceManager(
-            new ClusterIPServiceManager()
-        );
+  @Test
+  void shouldReturnNullNameBeforeCreate() {
+    CompositeServiceManager manager = new CompositeServiceManager(new ClusterIPServiceManager());
 
-        assertThat(manager.getName()).isNull();
-    }
+    assertThat(manager.getName()).isNull();
+  }
 
-    @Test
-    void shouldReturnNullServiceBeforeCreate() {
-        CompositeServiceManager manager = new CompositeServiceManager(
-            new ClusterIPServiceManager()
-        );
+  @Test
+  void shouldReturnNullServiceBeforeCreate() {
+    CompositeServiceManager manager = new CompositeServiceManager(new ClusterIPServiceManager());
 
-        assertThat(manager.getService()).isNull();
-    }
+    assertThat(manager.getService()).isNull();
+  }
 
-    @Test
-    void deleteShouldNotThrowBeforeCreate() {
-        CompositeServiceManager manager = new CompositeServiceManager(
-            new HeadlessServiceManager(),
-            new NodePortServiceManager()
-        );
+  @Test
+  void deleteShouldNotThrowBeforeCreate() {
+    CompositeServiceManager manager =
+        new CompositeServiceManager(new HeadlessServiceManager(), new NodePortServiceManager());
 
-        assertThatCode(() -> manager.delete()).doesNotThrowAnyException();
-    }
+    assertThatCode(() -> manager.delete()).doesNotThrowAnyException();
+  }
 
-    @Test
-    void shouldImplementServiceManagerInterface() {
-        CompositeServiceManager manager = new CompositeServiceManager(
-            new ClusterIPServiceManager()
-        );
+  @Test
+  void shouldImplementServiceManagerInterface() {
+    CompositeServiceManager manager = new CompositeServiceManager(new ClusterIPServiceManager());
 
-        assertThat(manager).isInstanceOf(ServiceManager.class);
-    }
+    assertThat(manager).isInstanceOf(ServiceManager.class);
+  }
 
-    @Test
-    void getServiceTypeShouldReturnComposite() {
-        CompositeServiceManager manager = new CompositeServiceManager(
-            new ClusterIPServiceManager()
-        );
+  @Test
+  void getServiceTypeShouldReturnComposite() {
+    CompositeServiceManager manager = new CompositeServiceManager(new ClusterIPServiceManager());
 
-        assertThat(manager.getServiceType()).isEqualTo("Composite");
-    }
+    assertThat(manager.getServiceType()).isEqualTo("Composite");
+  }
 
-    @Test
-    void shouldSupportFluentSuffixesConfiguration() {
-        CompositeServiceManager configured = new CompositeServiceManager(
-            new HeadlessServiceManager(),
-            new NodePortServiceManager()
-        ).withSuffixes("-headless", "");
+  @Test
+  void shouldSupportFluentSuffixesConfiguration() {
+    CompositeServiceManager configured =
+        new CompositeServiceManager(new HeadlessServiceManager(), new NodePortServiceManager())
+            .withSuffixes("-headless", "");
 
-        assertThat(configured).isNotNull();
-        assertThat(configured.size()).isEqualTo(2);
-    }
+    assertThat(configured).isNotNull();
+    assertThat(configured.size()).isEqualTo(2);
+  }
 
-    @Test
-    void shouldReturnNullForInvalidManagerIndex() {
-        CompositeServiceManager manager = new CompositeServiceManager(
-            new ClusterIPServiceManager()
-        );
+  @Test
+  void shouldReturnNullForInvalidManagerIndex() {
+    CompositeServiceManager manager = new CompositeServiceManager(new ClusterIPServiceManager());
 
-        assertThat(manager.getManager(-1)).isNull();
-        assertThat(manager.getManager(1)).isNull();
-        assertThat(manager.getService(-1)).isNull();
-        assertThat(manager.getService(1)).isNull();
-    }
+    assertThat(manager.getManager(-1)).isNull();
+    assertThat(manager.getManager(1)).isNull();
+    assertThat(manager.getService(-1)).isNull();
+    assertThat(manager.getService(1)).isNull();
+  }
 
-    @Test
-    void shouldReturnManagerByIndex() {
-        HeadlessServiceManager headless = new HeadlessServiceManager();
-        NodePortServiceManager nodePort = new NodePortServiceManager();
+  @Test
+  void shouldReturnManagerByIndex() {
+    HeadlessServiceManager headless = new HeadlessServiceManager();
+    NodePortServiceManager nodePort = new NodePortServiceManager();
 
-        CompositeServiceManager manager = new CompositeServiceManager(headless, nodePort);
+    CompositeServiceManager manager = new CompositeServiceManager(headless, nodePort);
 
-        assertThat(manager.getManager(0)).isSameAs(headless);
-        assertThat(manager.getManager(1)).isSameAs(nodePort);
-    }
+    assertThat(manager.getManager(0)).isSameAs(headless);
+    assertThat(manager.getManager(1)).isSameAs(nodePort);
+  }
 
-    @Test
-    void shouldHandleEmptyComposite() {
-        CompositeServiceManager manager = new CompositeServiceManager();
+  @Test
+  void shouldHandleEmptyComposite() {
+    CompositeServiceManager manager = new CompositeServiceManager();
 
-        assertThat(manager.size()).isEqualTo(0);
-        assertThat(manager.getService()).isNull();
-        assertThat(manager.getName()).isNull();
-    }
+    assertThat(manager.size()).isEqualTo(0);
+    assertThat(manager.getService()).isNull();
+    assertThat(manager.getName()).isNull();
+  }
 
-    @Test
-    void shouldHandleSingleManager() {
-        CompositeServiceManager manager = new CompositeServiceManager(
-            new ClusterIPServiceManager()
-        );
+  @Test
+  void shouldHandleSingleManager() {
+    CompositeServiceManager manager = new CompositeServiceManager(new ClusterIPServiceManager());
 
-        assertThat(manager.size()).isEqualTo(1);
-    }
+    assertThat(manager.size()).isEqualTo(1);
+  }
 }

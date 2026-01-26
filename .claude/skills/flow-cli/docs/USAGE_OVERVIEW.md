@@ -73,16 +73,16 @@ flow scaffold
 flow scaffold --non-interactive
 ```
 
-The wizard creates a complete `.flow/` configuration with:
+The wizard creates generic infrastructure in `.flow/`:
 
 - **Base config** (`.flow/base.yaml`) - Project-wide settings
-- **Flow configs** (`.flow/implement/`, `.flow/plan/`) - Flow-type-specific settings
 - **Templates** (`.flow/templates/`) - Completion workflow templates
-- **Orchestration scripts** (`.flow/scripts/flows/`) - Ready-to-use orchestration scripts including the full workflow orchestrator
-- **Learnings system** - For capturing insights from flow executions
-- **Proof system** - For evidence-backed documentation
+- **Utility modules** (`.flow/scripts/flows/lib/`) - Generic utility scripts (if `--include-scripts`)
+- **Learnings system** - For capturing insights from flow executions (if `--include-learnings`)
+- **Proof system** - For evidence-backed documentation (if `--include-proof`)
+- **FlowCLI skill** (`.claude/skills/flow-cli/`) - Documentation and examples (if `--include-skill`)
 
-After scaffolding, customize the configs for your project and you're ready to run flows.
+After scaffolding, a **kick-starter prompt** is printed. Paste this into your coding agent (Claude Code) to begin guided setup, which creates project-specific configuration (agent discovery, flow configs like `.flow/implement/base.yaml`, orchestration scripts).
 
 See the [Scaffold Command](#scaffold-command) section below for full documentation.
 
@@ -141,39 +141,40 @@ flow report --flow my-feature --agent builder-1
 
 ### `flow scaffold`
 
-Create a complete `.flow/` configuration folder for a new project. This is the recommended way to set up Flow CLI in a new project.
+Create a `.flow/` folder with generic infrastructure for a new project. This is the recommended way to set up Flow CLI.
 
 ```bash
 flow scaffold [OPTIONS]
 ```
 
+**Skill-First Approach:**
+
+The scaffold command creates generic infrastructure that works in any project, then prints a **kick-starter prompt** that triggers guided setup through your coding agent. Paste the prompt into Claude Code to:
+
+1. **Discover existing agents** in your project
+2. **Create new agents** (builder, reviewer, etc.)
+3. **Generate flow configs** (`.flow/implement/base.yaml`, etc.)
+4. **Create orchestration scripts** tailored to your project
+
+This approach ensures project-specific configuration is created by an agent that understands your codebase.
+
 **Options:**
 
-| Option                               | Description                                           | Default         |
-| ------------------------------------ | ----------------------------------------------------- | --------------- |
-| `--force`                            | Delete existing .flow folder before scaffolding       | -               |
-| `--dry-run`                          | Show what would be created without creating files     | -               |
-| `--flow-types`                       | Flow types to scaffold: implement, plan, or both      | implement       |
-| `--agent-interface`                  | Agent CLI interface: claude_code_cli or opencode      | claude_code_cli |
-| `--default-branch`                   | Default git branch name                               | main            |
-| `--include-learnings/--no-learnings` | Include learnings system scaffolding                  | yes             |
-| `--include-proof/--no-proof`         | Include proof generation system scaffolding           | yes             |
-| `--include-scripts/--no-scripts`     | Include example orchestration scripts                 | yes             |
-| `--include-skill/--no-skill`         | Include FlowCLI skill for Claude Code                 | yes             |
-| `--update-skill`                     | Only update skill content (skip .flow/ scaffolding)   | -               |
-| `--non-interactive`                  | Skip all prompts and use defaults or provided options | -               |
+| Option                               | Description                                              | Default         |
+| ------------------------------------ | -------------------------------------------------------- | --------------- |
+| `--force`                            | Delete existing .flow folder before scaffolding          | -               |
+| `--dry-run`                          | Show what would be created without creating files        | -               |
+| `--agent-interface`                  | Agent CLI interface: claude_code_cli or opencode         | claude_code_cli |
+| `--include-learnings/--no-learnings` | Include learnings system scaffolding                     | yes             |
+| `--include-proof/--no-proof`         | Include proof generation system scaffolding              | yes             |
+| `--include-scripts/--no-scripts`     | Include generic utility scripts (run_learnings.py, etc.) | yes             |
+| `--include-skill/--no-skill`         | Include FlowCLI skill for Claude Code                    | yes             |
+| `--update-skill`                     | Only update skill content (skip .flow/ scaffolding)      | -               |
+| `--non-interactive`                  | Skip wizard prompts and use defaults or provided options | -               |
 
 **Interactive Mode:**
 
-Without `--non-interactive`, the wizard guides you through configuration choices:
-
-1. **Flow types** - Which flow types to set up (implement, plan, or both)
-2. **Agent CLI** - Which agent interface to use (Claude Code CLI or OpenCode)
-3. **Default branch** - Default git branch name for the project
-4. **Learnings system** - Whether to include learnings for capturing insights
-5. **Proof system** - Whether to include proof generation system for demonstrations
-6. **Orchestration scripts** - Whether to include example scripts
-7. **FlowCLI skill** - Whether to include the FlowCLI skill for Claude Code
+Without `--non-interactive`, the wizard shows a summary of what will be created and asks for confirmation before proceeding.
 
 **Created Files:**
 
@@ -182,10 +183,7 @@ Core configuration files:
 ```
 .flow/
 ├── base.yaml                                    # Project-wide configuration
-├── implement/
-│   └── base.yaml                                # Implementation flow config
-├── plan/
-│   └── base.yaml                                # Planning flow config
+├── README.md                                    # Documentation
 └── templates/
     ├── implementation-completion-workflow-template.md
     ├── implementation-log-template.md
@@ -196,21 +194,21 @@ Core configuration files:
 With `--include-scripts` (default: yes):
 
 ```
-scripts/
-└── flows/
-    ├── implement.py                             # Implementation only
-    ├── learnings.py                             # Standalone learnings analysis
-    ├── proof.py                                 # Standalone proof generation
-    ├── implement_learnings_proof.py             # Full workflow orchestrator
-    ├── plan.py                                  # Planning orchestration
-    └── lib/
-        ├── __init__.py                          # Module exports
-        ├── validation_utils.py                  # Validation utilities
-        ├── review_loop.py                       # Build/review loop pattern
-        ├── learnings_runner.py                  # Learnings analysis
-        ├── git_utils.py                         # Git utilities
-        ├── guide_utils.py                       # Review guide generation
-        └── orchestration_utils.py               # Shared orchestration helpers
+.flow/
+└── scripts/
+    └── flows/
+        ├── run_learnings.py                     # Standalone learnings runner
+        ├── run_proof.py                         # Standalone proof runner
+        └── lib/
+            ├── __init__.py                      # Module exports
+            ├── validation_utils.py              # Validation utilities
+            ├── review_loop.py                   # Build/review loop pattern
+            ├── learnings_runner.py              # Learnings analysis
+            ├── git_utils.py                     # Git utilities
+            ├── guide_utils.py                   # Review guide generation
+            ├── orchestration_utils.py           # Shared orchestration helpers
+            ├── interactive_utils.py             # Interactive prompts
+            └── proof_runner.py                  # Proof generation
 ```
 
 With `--include-learnings` (default: yes):
@@ -236,17 +234,21 @@ With `--include-skill` (default: yes):
 └── skills/
     └── flow-cli/
         ├── SKILL.md                             # FlowCLI skill definition
+        ├── GETTING_STARTED.md                   # Guided setup workflow
         ├── docs/
         │   ├── api_docs.md                      # Python API documentation
         │   ├── cli_docs.md                      # CLI command documentation
         │   └── ...                              # Other documentation files
         └── examples/
-            └── flows/                           # Example orchestration scripts
-                ├── implement.py
-                └── lib/                         # Orchestration utilities
+            ├── README.md                        # Examples documentation
+            └── .flow/                           # Working examples from flow-cli
+                ├── base.yaml
+                ├── implement/
+                ├── plan/
+                └── scripts/flows/               # Example orchestration scripts
 ```
 
-The FlowCLI skill provides Claude Code with context-aware documentation for Flow CLI development. Use `--update-skill` to refresh skill content without re-scaffolding your project.
+The FlowCLI skill provides Claude Code with context-aware documentation for Flow CLI development. The `examples/.flow/` directory contains literal copies of working configs and scripts from the flow-cli repository. Use `--update-skill` to refresh skill content without re-scaffolding your project.
 
 **Examples:**
 
@@ -257,8 +259,8 @@ flow scaffold
 # Non-interactive with all defaults
 flow scaffold --non-interactive
 
-# Full setup with both flow types
-flow scaffold --non-interactive --flow-types both --include-scripts
+# Full setup with all systems
+flow scaffold --non-interactive --include-learnings --include-proof --include-skill
 
 # Preview what would be created
 flow scaffold --dry-run
@@ -266,30 +268,34 @@ flow scaffold --dry-run
 # Force recreate existing .flow folder
 flow scaffold --force
 
-# Minimal setup for implementation only
-flow scaffold --non-interactive --flow-types implement \
-  --no-learnings --no-proof --no-scripts
+# Minimal setup without optional systems
+flow scaffold --non-interactive --no-learnings --no-proof --no-scripts
 
 # Use OpenCode instead of Claude Code CLI
 flow scaffold --non-interactive --agent-interface opencode
-
-# Custom git branch name
-flow scaffold --non-interactive --default-branch develop
 
 # Update skill content only (no .flow/ changes)
 flow scaffold --update-skill
 ```
 
+**Post-Scaffold Workflow:**
+
+After scaffolding completes, the command prints a kick-starter prompt. Paste this into your coding agent to begin guided setup:
+
+1. The agent reads the GETTING_STARTED.md guide from the skill
+2. It interviews you about your project (where agents are, what flows you need)
+3. It creates project-specific configs and orchestration scripts
+
 **Relationship to Individual Scaffold Commands:**
 
 `flow scaffold` is a unified command that orchestrates multiple sub-scaffolds:
 
-| Sub-scaffold          | Equivalent to             | Included by Default |
-| --------------------- | ------------------------- | ------------------- |
-| Core .flow/ configs   | (no separate command)     | Always              |
-| Learnings system      | `flow learnings scaffold` | Yes                 |
-| Proof system          | `proof scaffold`          | Yes                 |
-| Orchestration scripts | (no separate command)     | Yes                 |
+| Sub-scaffold        | Equivalent to             | Included by Default |
+| ------------------- | ------------------------- | ------------------- |
+| Core .flow/ configs | (no separate command)     | Always              |
+| Learnings system    | `flow learnings scaffold` | Yes                 |
+| Proof system        | `proof scaffold`          | Yes                 |
+| Utility scripts     | (no separate command)     | Yes                 |
 
 **Note on Proof System:** The `--include-proof` option scaffolds the proof generation system (6 files via `proof scaffold`). When both `--include-learnings` and `--include-proof` are enabled, additional aggregator scripts that combine learnings and proof workflows are also included.
 
@@ -511,7 +517,7 @@ flow await \
 - `--agent, -a` (required): Agent identifier
 - `--stuck-timeout-secs`: Override default stuck timeout
 - `--max-wait-secs`: Override default maximum wait time
-- `--auto-retry`: Auto-retry stuck/timeout agents up to N times. Each retry agent is named `{original}-retry-{count}` and is automatically chained to the previous attempt via `--after`.
+- `--auto-retry`: Auto-retry stuck/timeout agents up to N times. Each retry agent is named `{original}-retry-{count}` and is automatically chained to the previous attempt via `--after`. Note: Rate limit errors are not retried, as retrying immediately won't help.
 - `--flow-type, -t`: Flow type (e.g., `implement`). Resolves to `.flow/{flow_type}/base.yaml` or `.flow/{flow_type}/{variant}.yaml`
 - `--variant, -v`: Config variant (e.g., `new-feature`). Requires `--flow-type`. Resolves to `.flow/{flow_type}/{variant}.yaml`
 - `--initiated-by`: Caller identifier
@@ -612,7 +618,7 @@ flow run <agent-type> \
 - `--after`: Chain from previous agent(s). Comma-separated list for merging multiple reports.
 - `--mcp-config`: Override MCP config path for this agent
 - `--agent-interface`: Override agent interface for this spawn (highest priority, overrides config)
-- `--auto-retry`: Auto-retry stuck/timeout agents up to N times
+- `--auto-retry`: Auto-retry stuck/timeout agents up to N times. Rate limit errors are not retried.
 - `--stuck-timeout-secs`: Override default stuck timeout
 - `--max-wait-secs`: Override default maximum wait time
 - `--flow-type, -t`: Flow type (e.g., `implement`). Resolves to `.flow/{flow_type}/base.yaml` or `.flow/{flow_type}/{variant}.yaml`
@@ -1869,128 +1875,118 @@ uv run .flow/scripts/flows/implement.py specs/my-plan.md
 
 ## Spec Plan Planning Flow
 
-The planning flow creates high-quality, reviewed spec plans from feature ideas. It runs BEFORE implementation to produce structured plans with verifiable demonstrations.
+The planning flow refines prepared plan files into complete spec plans. It takes an already-prepared plan .md file and runs it through drafting and showcase planning phases, with a single human checkpoint before finalization.
 
 ### Purpose
 
-- **Systematic analysis** - Analyze feature ideas for clarity, completeness, and consolidation opportunities
-- **Upfront review** - Agent review loops catch issues early in the planning phase
+- **Plan refinement** - Transform prepared plans into properly structured spec plans
+- **Template compliance** - Ensure plans follow the spec plan template exactly
 - **Planned demonstrations** - Define upfront what "done" looks like with concrete CLI demos
 - **Anti-code policy** - Plans contain pseudo-code and type signatures, not implementation code
-- **Human clarification** - Collect answers to ambiguities during planning, not during coding
+- **Human review** - Single checkpoint for reviewing and providing feedback
 
 ### CLI Usage
 
 ```bash
-uv run .flow/scripts/flows/plan.py <idea> [options]
+uv run .flow/scripts/flows/plan.py <plan_file> [options]
 ```
 
 **Arguments:**
 
-- `idea` (required): Feature idea or description to plan (quoted string)
+- `plan_file` (required): Path to prepared plan .md file
 
 **Options:**
 
-- `--name <name>`: Feature name for output file (default: auto-generated from idea as kebab-case)
+- `--name <name>`: Feature name for output file (default: filename stem)
 - `--info <context>`: Additional context for agents (passed to first agent that runs)
+- `--skip-showcase`: Skip showcase-planner agent, leave HTML comment placeholder
 - `--reset`: Start fresh and delete existing flow state (default: resume existing state)
 
 ### Examples
 
 ```bash
-# Basic usage - auto-generates feature name
-uv run .flow/scripts/flows/plan.py "Add user authentication with OAuth support"
-# Output: specs/add-user-authentication-with-oauth.md
+# Basic usage - uses filename stem as feature name
+uv run .flow/scripts/flows/plan.py specs/drafts/auth/input.md
+# Output: specs/auth.md
 
 # With custom output name
-uv run .flow/scripts/flows/plan.py "Add caching layer" --name redis-caching
+uv run .flow/scripts/flows/plan.py specs/drafts/cache/input.md --name redis-caching
 # Output: specs/redis-caching.md
 
 # With additional context for agents
-uv run .flow/scripts/flows/plan.py "Fix pagination bug" --info "Focus on cursor-based pagination"
+uv run .flow/scripts/flows/plan.py specs/drafts/api/input.md --info "Focus on REST patterns"
+
+# Skip showcase (faster, add showcase manually later)
+uv run .flow/scripts/flows/plan.py specs/drafts/quick/input.md --skip-showcase
 
 # Reset and start fresh (discards previous progress)
-uv run .flow/scripts/flows/plan.py "Add logging" --reset
+uv run .flow/scripts/flows/plan.py specs/drafts/logging/input.md --reset
 ```
 
 ### Workflow Overview
 
-The planning flow executes 5 steps with agent review loops:
+The planning flow executes 2 steps with a human checkpoint:
 
 ```
-Feature Idea
+Prepared Plan File (input.md)
     ↓
-[Step 1] plan-creator analyzes, asks questions
-    ↓ (human answers clarifications)
-[Step 2] plan-creator drafts complete plan
+[Step 1] plan-creator refines into complete spec plan
     ↓
-[Step 3] plan-reviewer reviews structure
-    ↓ (fix loop until approved)
-[Step 4] showcase-planner adds CLI demonstrations
+[Step 2] showcase-planner adds CLI demonstrations
     ↓
-[Step 5] plan-reviewer reviews complete plan
-    ↓ (fix + showcase regenerate loop until approved)
+[Human Checkpoint] Review draft, inline feedback support
+    ↓ (feedback loop: fix + showcase regenerate)
     ↓
 specs/{feature-name}.md ready for implement.py
 ```
 
 ### Step Details
 
-**Step 1: Initial Analysis**
+**Step 1: Draft**
 
-The plan-creator agent analyzes the feature idea and may:
+The plan-creator agent refines the prepared plan:
 
-- Identify `CLARIFICATION_NEEDED:` questions requiring human input
-- Suggest `SUGGESTIONS:` for improvement or consolidation
+- Ensures the plan follows the spec plan template exactly
+- Verifies all required sections are present and complete
+- Makes implementation steps clear, ordered, and actionable
+- Enforces the anti-code policy (no implementation code)
+- References existing code patterns
 
-Human answers are collected interactively and stored in the planning log.
+**Step 2: Showcase**
 
-**Step 2: Draft Plan**
-
-Creates the complete spec plan with:
-
-- Executive Summary (problem/solution/properties)
-- Background Research (context, existing patterns)
-- Implementation Steps (actionable steps with validation criteria)
-- Showcase placeholder marker for Step 4
-
-**Step 3: Structural Review**
-
-The plan-reviewer validates:
-
-- All required sections are present
-- Implementation steps are clear and actionable
-- Anti-code policy is followed (no implementation code)
-- Steps are properly ordered with dependencies
-
-If issues are found, plan-creator fixes them in a loop (max 3 attempts).
-
-**Step 4: Showcase Planning**
-
-The showcase-planner agent:
+The showcase-planner agent (or placeholder if `--skip-showcase`):
 
 - Analyzes the plan to understand what will be implemented
 - Creates the `## Showcase Requirements` section with CLI demonstrations
 - Replaces the placeholder marker with concrete YAML specifications
 
-**Step 5: Final Review with Showcase Regeneration**
+If `--skip-showcase` is used, an HTML comment placeholder is inserted instead:
 
-Final validation of the complete plan. On each fix iteration:
+```markdown
+## Showcase Requirements
 
-1. plan-reviewer identifies issues
-2. plan-creator applies fixes
-3. showcase-planner regenerates demonstrations to match updated plan
+<!-- SHOWCASE_TODO: Run with showcase-planner or manually add showcase requirements -->
+```
 
-This ensures showcase requirements stay synchronized with plan changes.
+**Human Checkpoint**
+
+After Steps 1-2, the human reviews the draft:
+
+- View diff showing transformation from original input to draft
+- Approve to finalize, or provide feedback
+- Feedback triggers plan-creator to make changes
+- Showcase is regenerated after each fix (unless `--skip-showcase`)
+- Repeat until approved
 
 ### Output Locations
 
 | File                                 | Description                          |
 | ------------------------------------ | ------------------------------------ |
 | `specs/{feature-name}.md`            | Generated spec plan                  |
+| `specs/drafts/{feature-name}/`       | Draft directory with snapshots       |
 | `flows/plan_{feature-name}/`         | Flow artifacts directory             |
 | `flows/plan_{feature-name}/flow.log` | Detailed orchestration log           |
-| `planning-log.md`                    | Human clarifications and agent notes |
+| `planning-log.md`                    | Human feedback and agent notes       |
 
 ### Resume Capability
 
@@ -1998,13 +1994,13 @@ The planning flow supports resume:
 
 ```bash
 # First run (interrupted or stopped)
-uv run .flow/scripts/flows/plan.py "Add authentication"
+uv run .flow/scripts/flows/plan.py specs/drafts/auth/input.md
 
 # Resume from where it stopped
-uv run .flow/scripts/flows/plan.py "Add authentication"
+uv run .flow/scripts/flows/plan.py specs/drafts/auth/input.md
 
 # Start fresh (discard progress)
-uv run .flow/scripts/flows/plan.py "Add authentication" --reset
+uv run .flow/scripts/flows/plan.py specs/drafts/auth/input.md --reset
 ```
 
 Each step checks for prior completion and skips if already done.
@@ -2015,23 +2011,22 @@ After planning completes, run the implementation flow:
 
 ```bash
 # Step 1: Plan the feature
-uv run .flow/scripts/flows/plan.py "Add user authentication"
-# Output: specs/add-user-authentication.md
+uv run .flow/scripts/flows/plan.py specs/drafts/auth/input.md
+# Output: specs/input.md
 
 # Step 2: Full workflow (implement + learnings + proof)
-uv run .flow/scripts/flows/implement_learnings_proof.py specs/add-user-authentication.md
+uv run .flow/scripts/flows/implement_learnings_proof.py specs/input.md
 
 # Or implementation only
-uv run .flow/scripts/flows/implement.py specs/add-user-authentication.md
+uv run .flow/scripts/flows/implement.py specs/input.md
 ```
 
 ### Agents Used
 
-| Agent              | Model  | Role                                      |
-| ------------------ | ------ | ----------------------------------------- |
-| `plan-creator`     | Opus   | Drafts and fixes spec plans               |
-| `plan-reviewer`    | Opus   | Reviews plans for completeness and policy |
-| `showcase-planner` | Sonnet | Creates CLI demonstration specifications  |
+| Agent              | Model  | Role                                     |
+| ------------------ | ------ | ---------------------------------------- |
+| `plan-creator`     | Opus   | Refines prepared plans into spec plans   |
+| `showcase-planner` | Sonnet | Creates CLI demonstration specifications |
 
 ### Anti-Code Policy
 

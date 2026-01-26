@@ -64,6 +64,7 @@ defaults:
 
 agents:
   builder:
+    description: "Implements code changes following the spec plan."
     model: anthropic/opus # provider/model format
     system_prompt: .claude/agents/builder.md
 
@@ -158,7 +159,16 @@ flow spawn builder -f my-flow -t implement -v new-feature -a builder-1 -i "Task"
 
 ### `flow scaffold`
 
-Create a complete `.flow/` configuration folder for a new project with an interactive wizard or CLI options.
+Create a `.flow/` folder with generic infrastructure for a new project, then print a kick-starter prompt to trigger guided setup.
+
+**Skill-First Approach:**
+
+The scaffold command creates generic infrastructure that works in any project, then prints a **kick-starter prompt**. Paste this prompt into your coding agent (Claude Code) to begin guided setup:
+
+1. The agent interviews you about your project
+2. It discovers existing agents or helps create new ones
+3. It generates project-specific flow configs (`.flow/implement/base.yaml`, etc.)
+4. It creates orchestration scripts tailored to your codebase
 
 **Network Requirement:** This command fetches all template files from GitHub at runtime, ensuring you always get the latest versions. An active internet connection to `raw.githubusercontent.com` is required during scaffolding.
 
@@ -180,25 +190,20 @@ flow scaffold [OPTIONS]
 | ------------------------------------ | ---------------------------------------------------------- |
 | `--force`                            | Delete existing .flow folder before scaffolding            |
 | `--dry-run`                          | Show what would be created without creating files          |
-| `--flow-types`                       | Flow types to scaffold: implement, plan, or both           |
 | `--agent-interface`                  | Agent CLI interface: claude_code_cli or opencode           |
-| `--default-branch`                   | Default git branch name (default: main)                    |
 | `--include-learnings/--no-learnings` | Include learnings system scaffolding (default: yes)        |
 | `--include-proof/--no-proof`         | Include proof generation system scaffolding (default: yes) |
-| `--include-scripts/--no-scripts`     | Include example orchestration scripts (default: yes)       |
+| `--include-scripts/--no-scripts`     | Include generic utility scripts (default: yes)             |
 | `--include-skill/--no-skill`         | Include FlowCLI skill for Claude Code (default: yes)       |
 | `--update-skill`                     | Only update skill content (skip .flow/ scaffolding)        |
-| `--non-interactive`                  | Skip all prompts and use defaults or provided options      |
+| `--non-interactive`                  | Skip wizard prompts and use defaults or provided options   |
 
 **Created Files:**
 
 ```
 .flow/
 ├── base.yaml                                    # Project-wide configuration
-├── implement/
-│   └── base.yaml                                # Implementation flow config
-├── plan/
-│   └── base.yaml                                # Planning flow config
+├── README.md                                    # Documentation
 └── templates/
     ├── implementation-completion-workflow-template.md
     ├── implementation-log-template.md
@@ -212,11 +217,8 @@ With `--include-scripts`:
 .flow/
 └── scripts/
     └── flows/
-        ├── implement.py                         # Implementation only
-        ├── run_learnings.py                     # Standalone learnings analysis
-        ├── run_proof.py                         # Standalone proof generation
-        ├── implement_learnings_proof.py         # Full workflow orchestrator
-        ├── plan.py                              # Planning orchestration
+        ├── run_learnings.py                     # Standalone learnings runner
+        ├── run_proof.py                         # Standalone proof runner
         └── lib/
             ├── __init__.py                      # Module exports
             ├── git_utils.py                     # Git utilities
@@ -236,8 +238,15 @@ With `--include-skill`:
 └── skills/
     └── flow-cli/
         ├── SKILL.md                             # FlowCLI skill definition
+        ├── GETTING_STARTED.md                   # Guided setup workflow
         ├── docs/                                # Documentation files
-        └── examples/flows/                      # Example orchestration scripts
+        └── examples/
+            ├── README.md                        # Examples documentation
+            └── .flow/                           # Working examples from flow-cli
+                ├── base.yaml
+                ├── implement/
+                ├── plan/
+                └── scripts/flows/               # Example orchestration scripts
 ```
 
 **Examples:**
@@ -249,9 +258,8 @@ flow scaffold
 # Non-interactive with defaults
 flow scaffold --non-interactive
 
-# Full setup with specific options
-flow scaffold --non-interactive --flow-types both \
-  --agent-interface claude_code_cli --include-learnings --include-scripts
+# Full setup with all systems
+flow scaffold --non-interactive --include-learnings --include-proof --include-skill
 
 # Preview what would be created
 flow scaffold --dry-run
@@ -260,8 +268,10 @@ flow scaffold --dry-run
 flow scaffold --force
 
 # Minimal setup without optional systems
-flow scaffold --non-interactive --flow-types implement \
-  --no-learnings --no-proof --no-scripts
+flow scaffold --non-interactive --no-learnings --no-proof --no-scripts
+
+# Use OpenCode instead of Claude Code CLI
+flow scaffold --non-interactive --agent-interface opencode
 
 # Update skill content only (no .flow/ changes)
 flow scaffold --update-skill
@@ -275,14 +285,14 @@ Files that would be created
 │ Path                        │ Status │
 ├─────────────────────────────┼────────┤
 │ .flow/base.yaml             │ new    │
-│ .flow/implement/base.yaml   │ new    │
+│ .flow/README.md             │ new    │
 │ .flow/templates/...         │ new    │
 └─────────────────────────────┴────────┘
 
 Optional systems:
   Would scaffold: learnings system
   Would scaffold: proof system
-  Would scaffold: orchestration scripts
+  Would scaffold: utility scripts
 ```
 
 **Exit Codes:**
@@ -394,7 +404,7 @@ flow run <agent_type> --flow <name> --input <task> [OPTIONS]
 | `--after`              | Comma-separated agent IDs for context chaining                                                             |
 | `--mcp-config`         | Override MCP config path                                                                                   |
 | `--agent-interface`    | Override agent interface (overrides config hierarchy)                                                      |
-| `--auto-retry`         | Auto-retry stuck/timeout agents up to N times                                                              |
+| `--auto-retry`         | Auto-retry stuck/timeout agents up to N times. Rate limit errors are not retried.                          |
 | `--stuck-timeout-secs` | Seconds of no activity before considering stuck                                                            |
 | `--max-wait-secs`      | Maximum seconds to wait for completion                                                                     |
 | `--flow-type`, `-t`    | Flow type (e.g., implement). Resolves to `.flow/{flow_type}/base.yaml`                                     |
@@ -520,7 +530,7 @@ flow await --flow <name> --agent <agent_id> [OPTIONS]
 | `--agent`, `-a`                                | **Required.** Agent ID to wait for                                                                         |
 | `--stuck-timeout-secs`                         | Seconds of no activity before considering stuck                                                            |
 | `--max-wait-secs`                              | Maximum seconds to wait for completion                                                                     |
-| `--auto-retry`                                 | Auto-retry stuck/timeout agents up to N times                                                              |
+| `--auto-retry`                                 | Auto-retry stuck/timeout agents up to N times. Rate limit errors are not retried.                          |
 | `--validate-artifacts/--no-validate-artifacts` | Validate declared artifacts after completion (default: enabled)                                            |
 | `--artifact-retry-limit`                       | Max resume attempts for missing artifacts (default: 3)                                                     |
 | `--flow-type`, `-t`                            | Flow type (e.g., implement). Resolves to `.flow/{flow_type}/base.yaml`                                     |

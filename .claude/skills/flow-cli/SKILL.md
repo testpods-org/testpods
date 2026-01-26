@@ -7,6 +7,10 @@ description: Multi-agent orchestration toolkit for structured workflows with fil
 
 Use this skill when working with Flow CLI multi-agent orchestration - writing orchestration scripts, configuring flows, debugging agent issues, or understanding the Flow system.
 
+> **New to Flow CLI?** Start with [GETTING_STARTED.md](GETTING_STARTED.md) or use the kick-starter prompt printed after `flow scaffold`.
+
+> **CRITICAL**: Always run `.claude/skills/flow-cli/scripts/validate_flow_orchestration.py` on any flow orchestration script you create or edit. This ensures the script has required UV metadata and --dry-run flag.
+
 ## Quick Reference
 
 ### Essential Commands
@@ -44,9 +48,9 @@ Use the appropriate documentation based on your current task:
 When building Python scripts that orchestrate multiple agents:
 
 → **Read `docs/api_docs.md`** for Python API reference (Flow class, AgentInfo, result types)
-→ **See `examples/flows/implement.py`** for a complete working implementation workflow
-→ **See `examples/flows/plan.py`** for a planning workflow example
-→ **See `examples/flows/lib/`** for reusable orchestration utilities:
+→ **See `examples/.flow/scripts/flows/implement.py`** for a complete working implementation workflow
+→ **See `examples/.flow/scripts/flows/plan.py`** for a planning workflow example
+→ **See `examples/.flow/scripts/flows/lib/`** for reusable orchestration utilities:
 
 - `review_loop.py` - Build-review-fix loop pattern
 - `validation_utils.py` - Running lint/type/test validation
@@ -95,6 +99,14 @@ When generating evidence-backed documentation:
 - Proof narrative generation
 - Integration with spec plans
 
+### Bootstrapping Flow CLI in a Project
+
+When first setting up Flow CLI in a new project, or when users ask for help getting started with flow configuration:
+
+→ **Read [GETTING_STARTED.md](GETTING_STARTED.md)** and follow the workflow to interview the user and create project-specific configuration.
+
+This guide walks through discovering existing agents, creating new ones if needed, and generating `.flow/` configuration tailored to the specific project.
+
 ### General Reference
 
 For overall understanding of the Flow CLI system:
@@ -104,16 +116,26 @@ For overall understanding of the Flow CLI system:
 
 ## Examples Location
 
-All runnable orchestration examples are in `examples/flows/`:
+The `examples/` directory mirrors a real project's `.flow/` structure with literal copies from the flow-cli project:
 
-| File                           | Description                                           |
-| ------------------------------ | ----------------------------------------------------- |
-| `implement.py`                 | Full implementation workflow with build/review/commit |
-| `plan.py`                      | Planning workflow with clarifications and review      |
-| `run_learnings.py`             | Standalone learnings analysis                         |
-| `run_proof.py`                 | Standalone proof generation                           |
-| `implement_learnings_proof.py` | Full workflow orchestrator (implement + post-tasks)   |
-| `lib/`                         | Reusable orchestration utilities                      |
+```
+examples/
+└── .flow/
+    ├── base.yaml                    # Project-wide defaults
+    ├── implement/
+    │   └── base.yaml                # Implementation flow config
+    ├── plan/
+    │   └── base.yaml                # Planning flow config
+    └── scripts/flows/
+        ├── implement.py             # Implementation workflow
+        ├── plan.py                  # Planning workflow
+        ├── run_learnings.py         # Standalone learnings analysis
+        ├── run_proof.py             # Standalone proof generation
+        ├── implement_learnings_proof.py  # Full workflow orchestrator
+        └── lib/                     # Reusable utilities
+```
+
+See `examples/README.md` for detailed documentation on how to use these examples.
 
 ### Key Patterns in Examples
 
@@ -127,6 +149,36 @@ The example scripts demonstrate:
 - **Git integration** - Automatic commits after approved changes
 - **Error handling** - Proper status management and cleanup on failure
 
+### Spec Plan Parsing API
+
+**IMPORTANT:** Use these helper functions from `flow.lib.spec_parser` - do NOT invent methods on the `Flow` class.
+
+```python
+from flow.lib.spec_parser import get_all_steps, get_pending_steps, mark_step_completed
+
+# Get all steps (for total count)
+all_steps = get_all_steps(plan_path, flow.config)
+# Returns: [(1, "Step title"), (2, "Another step"), ...]
+
+# Get only pending steps (not marked completed)
+pending_steps = get_pending_steps(plan_path, flow.config)
+
+# Mark a step completed in the plan file (❌ → ✅)
+mark_step_completed(plan_path, step_number)
+```
+
+Common pattern:
+
+```python
+all_steps = get_all_steps(plan_path, flow.config)
+flow.set_total_steps(len(all_steps))
+
+for step_number, step_title in get_pending_steps(plan_path, flow.config):
+    result = flow.run("builder", agent=AgentInfo(step=step_number, role="builder"), ...)
+    mark_step_completed(plan_path, step_number)
+    flow.mark_step_completed(step_number)
+```
+
 ## Updating This Skill
 
 To update this skill file to the latest version from the Flow CLI repository:
@@ -138,6 +190,30 @@ flow scaffold --update-skill
 This fetches the latest SKILL.md from the main branch and updates `.claude/skills/flow-cli/SKILL.md` with new features, documentation references, and examples.
 
 ## Tips
+
+### Orchestration Script Requirements
+
+All flow orchestration scripts must:
+
+1. **Start with the exact UV inline metadata header**:
+
+   ```python
+   #!/usr/bin/env -S uv run
+   # /// script
+   # requires-python = ">=3.13"
+   # dependencies = [
+   #     "flow-cli @ git+https://github.com/ebbe-brandstrup/flow-cli",
+   # ]
+   # ///
+   ```
+
+2. **Accept a `--dry-run` flag** that shows what the script would do without actually spawning agents or making changes
+
+Always validate scripts with:
+
+```bash
+uv run .claude/skills/flow-cli/scripts/validate_flow_orchestration.py path/to/script.py
+```
 
 ### For Orchestration Scripts
 

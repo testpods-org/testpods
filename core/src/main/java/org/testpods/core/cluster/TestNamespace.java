@@ -17,8 +17,8 @@ public class TestNamespace implements Closeable {
   }
 
   public TestNamespace(K8sCluster cluster) {
-      this.cluster = cluster;
-      this.name = NamespaceNaming.generate();
+    this.cluster = cluster;
+    this.name = NamespaceNaming.generate();
   }
 
   /** Creates the namespace in the cluster if it doesn't already exist. */

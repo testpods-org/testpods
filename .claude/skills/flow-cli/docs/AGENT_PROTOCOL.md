@@ -8,7 +8,7 @@ When the Flow CLI spawns an agent, it generates a complete system prompt that co
 
 The system prompt includes:
 
-1. **Identity**: Flow name, agent name, type, and step number
+1. **Identity**: Flow name, agent name, type, optional role description, and step number
 2. **Shared Files**: Context files with their contents or write instructions
 3. **Previous Agent Reports**: Output from agents in the chain (if chained with `--after`)
 4. **Completion Workflow**: Instructions for progress reporting and completion signaling
@@ -31,6 +31,7 @@ You are participating in a multi-agent workflow orchestrated by the Flow CLI.
 - Flow: {flow_name}
 - Agent: {agent_name}
 - Type: {agent_type}
+- Role: {description} (if configured)
 - Step: {step_number or N/A}
 
 ## Shared Context Files

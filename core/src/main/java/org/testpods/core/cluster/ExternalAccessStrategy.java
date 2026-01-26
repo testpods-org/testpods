@@ -1,18 +1,16 @@
 package org.testpods.core.cluster;
 
-import org.testpods.core.pods.TestPod;
-
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.LocalPortForward;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.testpods.core.pods.TestPod;
 
 /**
  * Strategy for accessing pods from outside the Kubernetes cluster.

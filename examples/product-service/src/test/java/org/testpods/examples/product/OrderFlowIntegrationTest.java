@@ -1,6 +1,7 @@
 package org.testpods.examples.product;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Assumes Kafka and PostgreSQL are started externally with connection properties injected.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
+@Disabled("Integration test requires external Kafka and PostgreSQL - run via system-tests module")
 class OrderFlowIntegrationTest {
 
     @LocalServerPort

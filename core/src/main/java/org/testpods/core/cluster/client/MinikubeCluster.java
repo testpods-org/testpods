@@ -1,16 +1,14 @@
 package org.testpods.core.cluster.client;
 
-import org.testpods.core.cluster.ExternalAccessStrategy;
-import org.testpods.core.cluster.K8sCluster;
-
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
-
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import org.testpods.core.cluster.ExternalAccessStrategy;
+import org.testpods.core.cluster.K8sCluster;
 
 /** K8sCluster implementation for Minikube clusters. */
 public class MinikubeCluster implements K8sCluster, Closeable {
@@ -80,21 +78,26 @@ public class MinikubeCluster implements K8sCluster, Closeable {
 
       if (exitCode != 0) {
         throw new ClusterException(
-            "Minikube profile '" + profile + "' is not running. "
-                + "Start it with: minikube start -p " + profile);
+            "Minikube profile '"
+                + profile
+                + "' is not running. "
+                + "Start it with: minikube start -p "
+                + profile);
       }
 
       // Parse JSON to check Host status
       String json = output.toString();
       if (!json.contains("\"Host\":\"Running\"")) {
         throw new ClusterException(
-            "Minikube profile '" + profile + "' host is not running. "
-                + "Start it with: minikube start -p " + profile);
+            "Minikube profile '"
+                + profile
+                + "' host is not running. "
+                + "Start it with: minikube start -p "
+                + profile);
       }
 
     } catch (IOException e) {
-      throw new ClusterException(
-          "Failed to check minikube status. Is minikube installed?", e);
+      throw new ClusterException("Failed to check minikube status. Is minikube installed?", e);
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new ClusterException("Interrupted while checking minikube status", e);

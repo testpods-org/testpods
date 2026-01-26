@@ -110,10 +110,12 @@ shared_files:
 # OpenCode: uses full string (anthropic/claude-sonnet-4-5)
 agents:
   builder:
+    description: "Implements code changes following the spec plan. The reviewer validates your work."
     model: anthropic/opus
     system_prompt: "@.claude/agents/builder.md"
 
   reviewer:
+    description: "Validates code changes (read-only review). Never modifies source files directly."
     model: anthropic/sonnet
     system_prompt: "@.claude/agents/reviewer.md"
 
@@ -308,7 +310,7 @@ def run(
 - `agent_interface` - Override agent interface for this call (overrides config hierarchy).
 - `plan_path` - Optional path to spec plan file. If provided with `agent.step`, plan content is parsed and inlined in the system prompt.
 - `assignment_preamble` - Optional preamble text to insert at the start of the "## Your Assignment" section, before the task content. Useful for providing context-setting instructions (e.g., for reviewer agents).
-- `auto_retry` - Max retry attempts on stuck/timeout (default: 0).
+- `auto_retry` - Max retry attempts on stuck/timeout (default: 0). Note: Rate limit errors are not retried, as retrying immediately won't help.
 - `stuck_timeout_secs` - Seconds before considering agent stuck. Overrides config default.
 - `max_wait_secs` - Maximum seconds to wait for completion. Overrides config default.
 - `initiated_by` - Caller identifier for breadcrumb tracking.
@@ -488,21 +490,23 @@ Register the total number of planned steps. Enables progress tracking in dashboa
 def set_total_steps(self, total_steps: int) -> None
 ```
 
-**Important:** When resuming flows, ensure you pass the **total** step count, not just the remaining/pending steps. If your plan parser filters out completed steps, get the full count separately:
+**Important:** When resuming flows, ensure you pass the **total** step count, not just the remaining/pending steps. If you filter out completed steps, get the full count separately:
 
 ```python
+from flow.lib.spec_parser import get_all_steps, get_pending_steps
+
 # CORRECT: Always use the total count from ALL steps
-all_steps = parse_plan(plan_path, include_completed=True)
-pending_steps = parse_plan(plan_path, include_completed=False)
+all_steps = get_all_steps(plan_path, flow.config)
+pending_steps = get_pending_steps(plan_path, flow.config)
 flow.set_total_steps(len(all_steps))  # Total steps in plan
 
-for step in pending_steps:
+for step_number, step_title in pending_steps:
     # Process only pending steps...
 ```
 
 ```python
 # INCORRECT: This breaks progress tracking on resume
-pending_steps = parse_plan(plan_path)  # Only returns pending steps
+pending_steps = get_pending_steps(plan_path, flow.config)
 flow.set_total_steps(len(pending_steps))  # Wrong! Overwrites correct total
 ```
 
@@ -578,6 +582,40 @@ if stats:
     print(f"Duration: {stats.total_duration_formatted}")
     print(f"Success Rate: {stats.success_rate_percentage}%")
     print(f"Total Agents: {stats.total_agents}")
+```
+
+#### Flow.get_logger()
+
+Get a logger for this flow, configured to write to the flow's log file.
+
+```python
+def get_logger(self, component: str = "orchestration") -> logging.Logger
+```
+
+**Parameters:**
+
+- `component` - Logger component name (default: "orchestration"). Appears in log entries for filtering.
+
+**Returns:** A `logging.Logger` instance configured to write to `flows/<flow-name>/flow.log`.
+
+**Example:**
+
+```python
+flow = Flow("my-feature", flow_type="implement")
+logger = flow.get_logger()
+logger.info("Starting build phase")
+
+# With custom component name for filtering
+build_logger = flow.get_logger("build-phase")
+build_logger.info("Building module X")
+```
+
+This is the recommended way to get a logger in orchestration scripts. Previously, you would need to import `get_flow_logger` directly:
+
+```python
+# Old approach (still works, but prefer flow.get_logger())
+from flow.lib.logging_setup import get_flow_logger
+logger = get_flow_logger(flow.name, "orchestration")
 ```
 
 #### Flow.cleanup()
@@ -1257,14 +1295,13 @@ This shows real-time progress of all agents.
 
 Each flow has a dedicated log file at `flows/<flow-name>/flow.log` that captures all flow operations.
 
-**Import and use the flow logger:**
+**Use `flow.get_logger()` to get a logger (recommended):**
 
 ```python
 import traceback
-from flow.lib.logging_setup import get_flow_logger
 
-# Get a logger for a specific operation
-logger = get_flow_logger(flow.name, "orchestration")
+flow = Flow("my-feature", flow_type="implement")
+logger = flow.get_logger()  # Returns logger for "orchestration" component
 
 # Log important events
 logger.info("Starting build phase")
@@ -1272,6 +1309,10 @@ logger.debug("Agent config loaded")
 logger.warning("Retrying after timeout")
 logger.error(f"Operation failed: {e}")
 logger.error(traceback.format_exc())  # Include full traceback
+
+# Use custom component name for filtering
+build_logger = flow.get_logger("build-phase")
+build_logger.info("Building module X")
 ```
 
 **Always log errors before re-raising:**
@@ -1280,7 +1321,7 @@ logger.error(traceback.format_exc())  # Include full traceback
 try:
     result = flow.run(...)
 except Exception as e:
-    logger = get_flow_logger(flow.name, "orchestration")
+    logger = flow.get_logger()
     logger.error(f"Flow crashed: {e}")
     logger.error(traceback.format_exc())
     flow.set_status("failed")
@@ -1288,6 +1329,13 @@ except Exception as e:
 ```
 
 This ensures errors are captured in `flow.log` even if the script terminates unexpectedly.
+
+**Alternative: Direct import (for cases where Flow instance is not available):**
+
+```python
+from flow.lib.logging_setup import get_flow_logger
+logger = get_flow_logger(flow_name, "orchestration")
+```
 
 ### 8. Multi-Step Plans: Defer Test Validation
 
@@ -1407,6 +1455,113 @@ if os.environ.get("RUN_LEARNINGS_ANALYSIS"):
 ```
 
 For the full learnings system including scaffolding and configuration, see `LEARNINGS_SYSTEM.md`.
+
+## Spec Plan Parsing
+
+The `flow.lib.spec_parser` module provides utilities for parsing spec plan files and extracting steps.
+
+### Helper Functions
+
+These convenience functions handle the common patterns of reading and parsing spec plans:
+
+#### get_all_steps()
+
+Get all steps from a plan file, including completed ones.
+
+```python
+from flow.lib.spec_parser import get_all_steps
+
+all_steps = get_all_steps(plan_path, flow.config)
+# Returns: [(1, "Step title"), (2, "Another step"), ...]
+```
+
+**Parameters:**
+
+- `plan_path` - Path to the spec plan file
+- `config` - FlowConfig (use `flow.config`)
+
+**Returns:** List of `(step_number, step_title)` tuples for all steps.
+
+#### get_pending_steps()
+
+Get only pending (non-completed) steps from a plan file.
+
+```python
+from flow.lib.spec_parser import get_pending_steps
+
+pending_steps = get_pending_steps(plan_path, flow.config)
+# Returns only steps not marked with ✓
+```
+
+**Parameters:**
+
+- `plan_path` - Path to the spec plan file
+- `config` - FlowConfig (use `flow.config`)
+
+**Returns:** List of `(step_number, step_title)` tuples for pending steps only.
+
+#### mark_step_completed()
+
+Mark a step as completed in the plan file (changes status indicator to ✅).
+
+```python
+from flow.lib.spec_parser import mark_step_completed
+
+mark_step_completed(plan_path, step_number)
+```
+
+**Parameters:**
+
+- `plan_path` - Path to the spec plan file
+- `step_number` - The step number to mark as completed
+
+**Returns:** `True` if the file was modified, `False` if no changes were made.
+
+### Common Pattern
+
+```python
+from pathlib import Path
+from flow.lib.spec_parser import get_all_steps, get_pending_steps, mark_step_completed
+
+plan_path = Path("specs/my-feature.md")
+
+with Flow("my-feature", flow_type="implement") as flow:
+    # Get all steps for total count (progress tracking)
+    all_steps = get_all_steps(plan_path, flow.config)
+    flow.set_total_steps(len(all_steps))
+
+    # Get pending steps to iterate
+    pending_steps = get_pending_steps(plan_path, flow.config)
+
+    for step_number, step_title in pending_steps:
+        # Run agents for this step...
+        result = flow.run(
+            "builder",
+            agent=AgentInfo(step=step_number, role="builder"),
+            input=f"Implement step {step_number}: {step_title}",
+        )
+
+        # Mark step completed in the plan file
+        mark_step_completed(plan_path, step_number)
+        flow.mark_step_completed(step_number)
+```
+
+### Low-Level API
+
+For more control, use `parse_spec_plan` directly:
+
+```python
+from flow.lib.spec_parser import parse_spec_plan
+
+content = Path(plan_path).read_text()
+parsed = parse_spec_plan(content, flow.config.spec_plan)
+
+# Access parsed data
+print(parsed.overview)  # Content before implementation steps
+for step in parsed.steps:
+    print(f"Step {step.number}: {step.title} (status: {step.status})")
+    print(step.content)  # Full step content
+```
 
 ## Orchestration Utilities
 

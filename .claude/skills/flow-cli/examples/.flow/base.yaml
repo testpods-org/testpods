@@ -1,0 +1,12 @@
+# Project-wide base configuration for all flow types
+# All flow-type configs should inherit from this file
+
+flow_type: _base
+flow_dir: flows
+default_branch: main
+
+# Default timeouts (in seconds)
+defaults:
+  stuck_timeout_secs: 1200 # 20 minutes - no activity = stuck
+  max_wait_secs: 3600 # 60 minutes - maximum wait time for await
+  stuck_retry_grace_secs: 120 # 2 minutes - give agents a chance to update their report file or otherwise send a heartbeat after having been detected as "stuck" (necessary for avoiding to consider agents as stuck when they resume after the PC awakens from sleep)
