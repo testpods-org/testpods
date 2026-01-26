@@ -6,10 +6,10 @@ import org.testpods.core.cluster.NamespaceNaming;
 import org.testpods.core.cluster.TestNamespace;
 
 /**
- * Configurable defaults for TestPod instances.
+ * Configurable defaults for TestPod instances with thread-safe isolation.
  *
- * <p>This class allows configuration of default cluster and namespace behavior when TestPods are
- * created without explicit cluster/namespace specification.
+ * <p>This class provides thread-isolated configuration for TestPod instances using {@link
+ * InheritableThreadLocal}, enabling safe parallel test execution in JUnit 5.
  *
  * <p>Defaults are resolved in this order:
  *
@@ -19,9 +19,20 @@ import org.testpods.core.cluster.TestNamespace;
  *   <li>Built-in fallbacks (auto-discover cluster, generate namespace name)
  * </ol>
  *
- * <h2>Future JUnit Extension Usage</h2>
+ * <h2>Thread Safety</h2>
  *
- * A JUnit extension would typically:
+ * <p>All thread-local state is stored in an {@link InheritableThreadLocal}, which means:
+ *
+ * <ul>
+ *   <li>Each test thread gets its own isolated configuration
+ *   <li>Child threads (e.g., parallel assertions) inherit parent configuration
+ *   <li>No race conditions between parallel tests
+ * </ul>
+ *
+ * <p><strong>Important:</strong> Call {@link #clear()} in your test cleanup (afterAll) to prevent
+ * memory leaks in thread pool executors.
+ *
+ * <h2>JUnit Extension Usage</h2>
  *
  * <pre>{@code
  * public class TestPodExtension implements BeforeAllCallback, AfterAllCallback {
@@ -41,7 +52,7 @@ import org.testpods.core.cluster.TestNamespace;
  *
  *     @Override
  *     public void afterAll(ExtensionContext context) {
- *         TestPodDefaults.clearThreadLocal();
+ *         TestPodDefaults.clear();
  *     }
  * }
  * }</pre>
@@ -60,8 +71,20 @@ import org.testpods.core.cluster.TestNamespace;
  */
 public final class TestPodDefaults {
 
-  // Thread-local context (for JUnit extension per-test isolation)
-  private static final ThreadLocal<Context> THREAD_CONTEXT = new ThreadLocal<>();
+  /**
+   * Thread-local context using InheritableThreadLocal for safe parallel test execution.
+   *
+   * <p>InheritableThreadLocal ensures that child threads (spawned for parallel assertions, async
+   * operations, etc.) inherit the parent thread's configuration.
+   */
+  private static final InheritableThreadLocal<Context> THREAD_CONTEXT =
+      new InheritableThreadLocal<>() {
+        @Override
+        protected Context childValue(Context parentValue) {
+          // Create defensive copy for child threads
+          return parentValue != null ? new Context(parentValue) : null;
+        }
+      };
 
   // Global defaults (fallback when no thread-local context)
   private static volatile Supplier<K8sCluster> globalClusterSupplier;
@@ -74,12 +97,20 @@ public final class TestPodDefaults {
   // Thread-local context (for JUnit extensions)
   // =========================================================================
 
-  /** Set a thread-local cluster supplier. This takes precedence over global defaults. */
+  /**
+   * Set a thread-local cluster supplier. This takes precedence over global defaults.
+   *
+   * @param supplier the cluster supplier to use for this thread
+   */
   public static void setClusterSupplier(Supplier<K8sCluster> supplier) {
     getOrCreateContext().clusterSupplier = supplier;
   }
 
-  /** Set a thread-local namespace name supplier. This takes precedence over global defaults. */
+  /**
+   * Set a thread-local namespace name supplier. This takes precedence over global defaults.
+   *
+   * @param supplier the namespace name supplier to use for this thread
+   */
   public static void setNamespaceNameSupplier(Supplier<String> supplier) {
     getOrCreateContext().namespaceNameSupplier = supplier;
   }
@@ -87,13 +118,36 @@ public final class TestPodDefaults {
   /**
    * Set a thread-local shared namespace. When set, all TestPods in this thread will use this
    * namespace.
+   *
+   * @param namespace the shared namespace for this thread
    */
   public static void setSharedNamespace(TestNamespace namespace) {
     getOrCreateContext().sharedNamespace = namespace;
   }
 
-  /** Clear thread-local context. Call this in test cleanup (afterAll/afterEach). */
+  /**
+   * Clear thread-local context. Call this in test cleanup (afterAll/afterEach).
+   *
+   * <p><strong>Important:</strong> Always call this method in your cleanup to prevent memory leaks,
+   * especially when using thread pools.
+   *
+   * @deprecated Use {@link #clear()} instead for consistency with common naming conventions.
+   */
+  @Deprecated
   public static void clearThreadLocal() {
+    clear();
+  }
+
+  /**
+   * Clear all thread-local state for the current thread.
+   *
+   * <p><strong>Important:</strong> Always call this method in your test cleanup (afterAll) to
+   * prevent memory leaks when using thread pool executors.
+   *
+   * <p>This method removes the thread-local context, freeing any references held by the current
+   * thread. Child threads that inherited the context are not affected.
+   */
+  public static void clear() {
     THREAD_CONTEXT.remove();
   }
 
@@ -101,12 +155,20 @@ public final class TestPodDefaults {
   // Global defaults (fallback)
   // =========================================================================
 
-  /** Set global cluster supplier (used when no thread-local supplier). */
+  /**
+   * Set global cluster supplier (used when no thread-local supplier).
+   *
+   * @param supplier the global cluster supplier
+   */
   public static void setGlobalClusterSupplier(Supplier<K8sCluster> supplier) {
     globalClusterSupplier = supplier;
   }
 
-  /** Set global namespace name supplier (used when no thread-local supplier). */
+  /**
+   * Set global namespace name supplier (used when no thread-local supplier).
+   *
+   * @param supplier the global namespace name supplier
+   */
   public static void setGlobalNamespaceNameSupplier(Supplier<String> supplier) {
     globalNamespaceNameSupplier = supplier;
   }
@@ -114,6 +176,8 @@ public final class TestPodDefaults {
   /**
    * Set a global shared namespace. When set, all TestPods will use this namespace unless
    * overridden.
+   *
+   * @param namespace the global shared namespace
    */
   public static void setGlobalSharedNamespace(TestNamespace namespace) {
     globalSharedNamespace = namespace;
@@ -129,6 +193,19 @@ public final class TestPodDefaults {
   // =========================================================================
   // Resolution (used by BaseTestPod)
   // =========================================================================
+
+  /**
+   * Check if a cluster supplier has been configured (thread-local or global).
+   *
+   * @return true if a cluster supplier is configured, false otherwise
+   */
+  public static boolean hasClusterConfigured() {
+    Context ctx = THREAD_CONTEXT.get();
+    if (ctx != null && ctx.clusterSupplier != null) {
+      return true;
+    }
+    return globalClusterSupplier != null;
+  }
 
   /**
    * Get the shared namespace if one is configured.
@@ -183,7 +260,7 @@ public final class TestPodDefaults {
    *   <li>Default generator: {@code testpods-xxxxx}
    * </ol>
    *
-   * @return The resolved namespace name
+   * @return The resolved namespace name, or null if using default naming
    */
   public static String resolveNamespaceName() {
     // Thread-local first
@@ -205,6 +282,11 @@ public final class TestPodDefaults {
   // Internal
   // =========================================================================
 
+  /**
+   * Get or create the thread-local context for the current thread.
+   *
+   * @return the context for the current thread
+   */
   private static Context getOrCreateContext() {
     Context ctx = THREAD_CONTEXT.get();
     if (ctx == null) {
@@ -214,10 +296,32 @@ public final class TestPodDefaults {
     return ctx;
   }
 
-  /** Mutable context holder for thread-local state. */
+  /**
+   * Mutable context holder for thread-local state.
+   *
+   * <p>This class uses volatile fields to ensure visibility across threads when the context is
+   * copied to child threads via {@link InheritableThreadLocal#childValue(Object)}.
+   */
   private static class Context {
-    Supplier<K8sCluster> clusterSupplier;
-    Supplier<String> namespaceNameSupplier;
-    TestNamespace sharedNamespace;
+    volatile Supplier<K8sCluster> clusterSupplier;
+    volatile Supplier<String> namespaceNameSupplier;
+    volatile TestNamespace sharedNamespace;
+
+    /** Create an empty context. */
+    Context() {}
+
+    /**
+     * Copy constructor for child thread inheritance.
+     *
+     * <p>Creates a defensive copy of the parent context to ensure isolation between parent and
+     * child threads. Changes in either thread will not affect the other.
+     *
+     * @param parent the parent context to copy from
+     */
+    Context(Context parent) {
+      this.clusterSupplier = parent.clusterSupplier;
+      this.namespaceNameSupplier = parent.namespaceNameSupplier;
+      this.sharedNamespace = parent.sharedNamespace;
+    }
   }
 }
