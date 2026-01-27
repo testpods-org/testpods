@@ -22,8 +22,11 @@ Current integration testing approaches using Testcontainers provide excellent Do
 ## 1.3. Solution Overview
 
 Testpods provides a JUnit-integrated library that:
-- Manages a lightweight local Kubernetes node via Minikube
 - Offers a fluent API for defining and deploying containerized dependencies as Kubernetes pods
+- Manages a lightweight local Kubernetes node via Minikube
 - Supports multiple CRI-compliant container runtimes
-- Includes pre-built modules for common infrastructure components
 - Enables developers to test applications in an environment that mirrors production Kubernetes deployments
+- Provides in-depth examples of how to create integration and system-level tests using Testpods
+- Makes it possible to create custom TestPods  
+- Includes pre-built modules for common infrastructure components
+- Facilitates that developers can contribute with new modules 
