@@ -4,6 +4,8 @@ import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
+import io.fabric8.kubernetes.api.model.PodSpecBuilder;
+import io.fabric8.kubernetes.api.model.VolumeBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.time.Duration;
 import java.util.LinkedHashMap;
@@ -286,59 +288,133 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> {
 
   // === StatefulSet Building ===
 
+  /** Volume name for init scripts ConfigMap mount. */
+  static final String INIT_SCRIPTS_VOLUME_NAME = "init-scripts";
+
+  /** Mount path for PostgreSQL Docker image init scripts. */
+  static final String INIT_SCRIPTS_MOUNT_PATH = "/docker-entrypoint-initdb.d";
+
   @Override
   protected Container buildMainContainer() {
-    return new ContainerBuilder()
-        .withName("postgres")
-        .withImage(image)
-        .addNewPort()
-        .withContainerPort(POSTGRESQL_PORT)
-        .withName("postgres")
-        .endPort()
-        .addNewEnv()
-        .withName("POSTGRES_DB")
-        .withValue(databaseName)
-        .endEnv()
-        .addNewEnv()
-        .withName("POSTGRES_USER")
-        .withValue(username)
-        .endEnv()
-        .addNewEnv()
-        .withName("POSTGRES_PASSWORD")
-        .withValue(password)
-        .endEnv()
-        // Performance: disable fsync for tests
-        .withArgs("-c", "fsync=off", "-c", "synchronous_commit=off")
-        .withNewReadinessProbe()
-        .withNewExec()
-        .withCommand("pg_isready", "-U", username, "-d", databaseName)
-        .endExec()
-        .withInitialDelaySeconds(5)
-        .withPeriodSeconds(5)
-        .withTimeoutSeconds(3)
-        .endReadinessProbe()
-        .withNewLivenessProbe()
-        .withNewExec()
-        .withCommand("pg_isready", "-U", username, "-d", databaseName)
-        .endExec()
-        .withInitialDelaySeconds(30)
-        .withPeriodSeconds(10)
-        .withTimeoutSeconds(5)
-        .endLivenessProbe()
-        .build();
+    ContainerBuilder builder =
+        new ContainerBuilder()
+            .withName("postgres")
+            .withImage(image)
+            .addNewPort()
+            .withContainerPort(POSTGRESQL_PORT)
+            .withName("postgres")
+            .endPort()
+            .addNewEnv()
+            .withName("POSTGRES_DB")
+            .withValue(databaseName)
+            .endEnv()
+            .addNewEnv()
+            .withName("POSTGRES_USER")
+            .withValue(username)
+            .endEnv()
+            .addNewEnv()
+            .withName("POSTGRES_PASSWORD")
+            .withValue(password)
+            .endEnv()
+            // Performance: disable fsync for tests
+            .withArgs("-c", "fsync=off", "-c", "synchronous_commit=off")
+            .withNewReadinessProbe()
+            .withNewExec()
+            .withCommand("pg_isready", "-U", username, "-d", databaseName)
+            .endExec()
+            .withInitialDelaySeconds(5)
+            .withPeriodSeconds(5)
+            .withTimeoutSeconds(3)
+            .endReadinessProbe()
+            .withNewLivenessProbe()
+            .withNewExec()
+            .withCommand("pg_isready", "-U", username, "-d", databaseName)
+            .endExec()
+            .withInitialDelaySeconds(30)
+            .withPeriodSeconds(10)
+            .withTimeoutSeconds(5)
+            .endLivenessProbe();
+
+    // Add init scripts volume mount if configured
+    if (hasInitScripts()) {
+      builder
+          .addNewVolumeMount()
+          .withName(INIT_SCRIPTS_VOLUME_NAME)
+          .withMountPath(INIT_SCRIPTS_MOUNT_PATH)
+          .withReadOnly(true)
+          .endVolumeMount();
+    }
+
+    return builder.build();
   }
 
-  // Note: Init script support is documented but not yet implemented.
-  // The createAdditionalResources hook does not exist in StatefulSetPod yet.
-  // When added, uncomment and implement:
-  // @Override
-  // protected void createAdditionalResources() {
-  //   if (initScriptPath != null || initScriptContent != null) {
-  //     createInitScriptConfigMap();
-  //   }
-  // }
+  /**
+   * Check if init scripts are configured.
+   *
+   * @return true if either initScriptPath or initScriptContent is set
+   */
+  boolean hasInitScripts() {
+    return initScriptPath != null || initScriptContent != null;
+  }
 
-  @SuppressWarnings("unused")
+  @Override
+  protected PodSpecBuilder applyPodCustomizations(PodSpecBuilder baseSpec) {
+    baseSpec = super.applyPodCustomizations(baseSpec);
+
+    // Add init scripts volume if configured
+    if (hasInitScripts()) {
+      baseSpec.addToVolumes(
+          new VolumeBuilder()
+              .withName(INIT_SCRIPTS_VOLUME_NAME)
+              .withNewConfigMap()
+              .withName(name + "-init")
+              .endConfigMap()
+              .build());
+    }
+
+    return baseSpec;
+  }
+
+  // =============================================================
+  // Lifecycle - ConfigMap must be created before StatefulSet
+  // =============================================================
+
+  @Override
+  public void start() {
+    // Resolve namespace lazily if not explicitly set
+    ensureNamespace();
+
+    // Ensure namespace exists in cluster (idempotent if already created)
+    if (!namespace.isCreated()) {
+      namespace.create();
+    }
+
+    // Create init script ConfigMap BEFORE super.start() creates the StatefulSet
+    // This ensures the ConfigMap exists when the pod spec references it
+    if (hasInitScripts()) {
+      createInitScriptConfigMap();
+    }
+
+    // Now create the StatefulSet (which references the ConfigMap)
+    super.start();
+  }
+
+  @Override
+  public void stop() {
+    super.stop();
+
+    // Clean up the ConfigMap after stopping the StatefulSet
+    if (hasInitScripts()) {
+      deleteInitScriptConfigMap();
+    }
+  }
+
+  /**
+   * Create the init script ConfigMap in Kubernetes.
+   *
+   * <p>This method is called from {@link #start()} before the StatefulSet is created, ensuring the
+   * ConfigMap exists when the pod spec references it.
+   */
   private void createInitScriptConfigMap() {
     String sql = initScriptContent;
     if (sql == null && initScriptPath != null) {
@@ -362,6 +438,16 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> {
             .build();
 
     client.configMaps().inNamespace(namespace.getName()).resource(configMap).create();
+  }
+
+  /**
+   * Delete the init script ConfigMap from Kubernetes.
+   *
+   * <p>This method is called from {@link #stop()} after the StatefulSet is deleted.
+   */
+  private void deleteInitScriptConfigMap() {
+    KubernetesClient client = getClient();
+    client.configMaps().inNamespace(namespace.getName()).withName(name + "-init").delete();
   }
 
   private String loadClasspathResource(String path) {

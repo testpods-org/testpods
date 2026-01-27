@@ -29,6 +29,141 @@ Create `PostgreSQLPod` extending `StatefulSetPod` (for data persistence) with:
 
 ---
 
+## Init Script Volume Mounting Pattern
+
+> **Reference:** This pattern was established by refactoring [04-fix-init-script-configmap-mount](refactorings/04-fix-init-script-configmap-mount.md) to fix a bug where init scripts were not being mounted correctly.
+
+### Problem Background
+
+PostgreSQL Docker images automatically execute scripts placed in `/docker-entrypoint-initdb.d/` during first-time database initialization. To make init scripts available, TestPods must:
+
+1. Store the SQL content in a Kubernetes ConfigMap
+2. Mount the ConfigMap as a Volume in the pod spec
+3. Add a VolumeMount in the container pointing to the init script directory
+
+### Implementation Requirements
+
+When implementing init script support, **all three components must be present**:
+
+#### 1. ConfigMap Creation (Lifecycle Method)
+
+Create the ConfigMap **before** the StatefulSet to ensure it exists when referenced:
+
+```java
+// Constants for consistency
+static final String INIT_SCRIPTS_VOLUME_NAME = "init-scripts";
+static final String INIT_SCRIPTS_MOUNT_PATH = "/docker-entrypoint-initdb.d";
+
+@Override
+public void start() {
+    ensureNamespace();
+    if (!namespace.isCreated()) {
+        namespace.create();
+    }
+
+    // ConfigMap MUST be created before StatefulSet
+    if (hasInitScripts()) {
+        createInitScriptConfigMap();
+    }
+
+    super.start();  // Creates StatefulSet that references ConfigMap
+}
+
+private void createInitScriptConfigMap() {
+    ConfigMap configMap = new ConfigMapBuilder()
+        .withNewMetadata()
+            .withName(name + "-init")  // Name pattern: {podName}-init
+            .withNamespace(namespace.getName())
+        .endMetadata()
+        .addToData("init.sql", sqlContent)
+        .build();
+    client.configMaps().inNamespace(namespace.getName())
+        .resource(configMap).create();
+}
+```
+
+#### 2. Volume in Pod Spec (applyPodCustomizations)
+
+Add a Volume that references the ConfigMap by name:
+
+```java
+@Override
+protected PodSpecBuilder applyPodCustomizations(PodSpecBuilder baseSpec) {
+    baseSpec = super.applyPodCustomizations(baseSpec);
+
+    if (hasInitScripts()) {
+        baseSpec.addToVolumes(new VolumeBuilder()
+            .withName(INIT_SCRIPTS_VOLUME_NAME)  // Must match VolumeMount name
+            .withNewConfigMap()
+                .withName(name + "-init")        // Must match ConfigMap name
+            .endConfigMap()
+            .build());
+    }
+
+    return baseSpec;
+}
+```
+
+#### 3. VolumeMount in Container (buildMainContainer)
+
+Add a VolumeMount that links to the Volume and specifies the mount path:
+
+```java
+@Override
+protected Container buildMainContainer() {
+    ContainerBuilder builder = new ContainerBuilder()
+        .withName("postgres")
+        .withImage(image)
+        // ... other configuration ...
+
+    if (hasInitScripts()) {
+        builder.addNewVolumeMount()
+            .withName(INIT_SCRIPTS_VOLUME_NAME)  // Must match Volume name
+            .withMountPath(INIT_SCRIPTS_MOUNT_PATH)
+            .withReadOnly(true)                   // Security: read-only
+        .endVolumeMount();
+    }
+
+    return builder.build();
+}
+```
+
+### Kubernetes Volume Linking
+
+The Volume and VolumeMount are linked by **name** in Kubernetes:
+
+```mermaid
+erDiagram
+    PostgreSQLPod ||--o{ ConfigMap : "creates init-scripts"
+    PostgreSQLPod ||--|| StatefulSet : creates
+    StatefulSet ||--|| PodSpec : contains
+    PodSpec ||--o{ Volume : contains
+    PodSpec ||--|| Container : contains
+    Container ||--o{ VolumeMount : mounts
+    Volume ||--|| ConfigMap : "references"
+    VolumeMount }|--|| Volume : "references by name"
+```
+
+### Critical Ordering
+
+1. **Namespace** must exist before ConfigMap creation
+2. **ConfigMap** must exist before StatefulSet creation
+3. **Volume** references ConfigMap by name in pod spec
+4. **VolumeMount** references Volume by name in container spec
+5. **Cleanup**: Delete StatefulSet first, then ConfigMap
+
+### Common Mistakes to Avoid
+
+| Mistake | Result | Fix |
+|---------|--------|-----|
+| Creating ConfigMap after StatefulSet | Pod fails to mount non-existent ConfigMap | Override `start()` to create ConfigMap first |
+| Volume and VolumeMount names don't match | Volume not mounted to container | Use shared constant for volume name |
+| ConfigMap name doesn't match Volume reference | Pod fails to find ConfigMap | Use consistent naming pattern (`{podName}-init`) |
+| Missing Volume in pod spec | VolumeMount has nothing to mount | Override `applyPodCustomizations()` |
+| Missing VolumeMount in container | Files not visible in container | Add VolumeMount in `buildMainContainer()` |
+
+---
+
 ## Technical Approach
 
 ### Class Hierarchy
@@ -329,55 +464,83 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> {
             .withTimeout(Duration.ofMinutes(2));
     }
 
-    // === StatefulSet Building ===
+    // === Init Script Volume Mounting ===
+    // See "Init Script Volume Mounting Pattern" section above for details
 
-    @Override
-    protected Container buildMainContainer() {
-        return new ContainerBuilder()
-            .withName("postgres")
-            .withImage(image)
-            .addNewPort()
-                .withContainerPort(POSTGRESQL_PORT)
-                .withName("postgres")
-            .endPort()
-            .addNewEnv()
-                .withName("POSTGRES_DB")
-                .withValue(databaseName)
-            .endEnv()
-            .addNewEnv()
-                .withName("POSTGRES_USER")
-                .withValue(username)
-            .endEnv()
-            .addNewEnv()
-                .withName("POSTGRES_PASSWORD")
-                .withValue(password)
-            .endEnv()
-            // Performance: disable fsync for tests
-            .withArgs("-c", "fsync=off", "-c", "synchronous_commit=off")
-            .withNewReadinessProbe()
-                .withNewExec()
-                    .withCommand("pg_isready", "-U", username, "-d", databaseName)
-                .endExec()
-                .withInitialDelaySeconds(5)
-                .withPeriodSeconds(5)
-                .withTimeoutSeconds(3)
-            .endReadinessProbe()
-            .withNewLivenessProbe()
-                .withNewExec()
-                    .withCommand("pg_isready", "-U", username, "-d", databaseName)
-                .endExec()
-                .withInitialDelaySeconds(30)
-                .withPeriodSeconds(10)
-                .withTimeoutSeconds(5)
-            .endLivenessProbe()
-            .build();
+    /** Volume name for init scripts ConfigMap mount. */
+    static final String INIT_SCRIPTS_VOLUME_NAME = "init-scripts";
+
+    /** Mount path for PostgreSQL Docker image init scripts. */
+    static final String INIT_SCRIPTS_MOUNT_PATH = "/docker-entrypoint-initdb.d";
+
+    /**
+     * Check if init scripts are configured.
+     */
+    boolean hasInitScripts() {
+        return initScriptPath != null || initScriptContent != null;
     }
 
     @Override
-    protected void createAdditionalResources() {
-        // Create init script ConfigMap if provided
-        if (initScriptPath != null || initScriptContent != null) {
+    protected Container buildMainContainer() {
+        ContainerBuilder builder = new ContainerBuilder()
+            .withName("postgres")
+            .withImage(image)
+            .addNewPort().withContainerPort(5432).endPort()
+            // ... environment variables and probes ...
+
+        // Add init scripts volume mount if configured (Step 1 of fix)
+        if (hasInitScripts()) {
+            builder.addNewVolumeMount()
+                .withName(INIT_SCRIPTS_VOLUME_NAME)
+                .withMountPath(INIT_SCRIPTS_MOUNT_PATH)
+                .withReadOnly(true)
+            .endVolumeMount();
+        }
+
+        return builder.build();
+    }
+
+    @Override
+    protected PodSpecBuilder applyPodCustomizations(PodSpecBuilder baseSpec) {
+        baseSpec = super.applyPodCustomizations(baseSpec);
+
+        // Add init scripts volume if configured (Step 2 of fix)
+        if (hasInitScripts()) {
+            baseSpec.addToVolumes(new VolumeBuilder()
+                .withName(INIT_SCRIPTS_VOLUME_NAME)
+                .withNewConfigMap()
+                    .withName(name + "-init")
+                .endConfigMap()
+                .build());
+        }
+
+        return baseSpec;
+    }
+
+    // === Lifecycle - ConfigMap must be created before StatefulSet ===
+
+    @Override
+    public void start() {
+        ensureNamespace();
+        if (!namespace.isCreated()) {
+            namespace.create();
+        }
+
+        // Create init script ConfigMap BEFORE super.start() creates StatefulSet (Step 3 of fix)
+        if (hasInitScripts()) {
             createInitScriptConfigMap();
+        }
+
+        super.start();  // Creates StatefulSet that references the ConfigMap
+    }
+
+    @Override
+    public void stop() {
+        super.stop();  // Delete StatefulSet first
+
+        // Clean up the ConfigMap after stopping the StatefulSet
+        if (hasInitScripts()) {
+            deleteInitScriptConfigMap();
         }
     }
 
@@ -404,6 +567,14 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> {
             .inNamespace(namespace.getName())
             .resource(configMap)
             .create();
+    }
+
+    private void deleteInitScriptConfigMap() {
+        KubernetesClient client = getClient();
+        client.configMaps()
+            .inNamespace(namespace.getName())
+            .withName(name + "-init")
+            .delete();
     }
 
     private String loadClasspathResource(String path) {
