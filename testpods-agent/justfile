@@ -1,0 +1,109 @@
+# TestPods Agent — development commands
+#
+# Run `just` to see all available recipes.
+# Requires: uv
+
+import 'plugin.justfile'
+
+# Show available recipes
+default:
+    @just --list
+
+# Run the pytest test suite
+test:
+    uv run --group test pytest
+
+# Show current plugin version and release status
+release-status:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version=$(jq -r .version plugin/.claude-plugin/plugin.json)
+    last_tag=$(git tag -l 'testpods-agent/v*' --sort=-v:refname | head -1)
+    echo "Current version: $version"
+    echo "Last tag:        ${last_tag:-none}"
+    if [ -n "$last_tag" ]; then
+        count=$(git rev-list --count "$last_tag"..HEAD)
+        echo "Commits since:   $count"
+    else
+        count=$(git rev-list --count HEAD)
+        echo "Commits (total): $count"
+    fi
+
+# Create a new release: bump versions, generate changelog, commit, tag, update marketplace
+release version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    VERSION="{{ version }}"
+
+    # Validate version format (bare semver, no v-prefix)
+    if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        echo "Error: version must be bare semver (e.g., 0.3.0), got: $VERSION" >&2
+        exit 1
+    fi
+
+    # Check working tree is clean
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo "Error: working tree is not clean. Commit or stash changes first." >&2
+        exit 1
+    fi
+
+    echo "==> Bumping versions to $VERSION"
+    uv run --script scripts/release/bump_versions.py "$VERSION"
+
+    echo ""
+    echo "==> Generating changelog"
+    uv run --script scripts/release/generate_changelog.py "$VERSION"
+
+    echo ""
+    echo "==> Committing release"
+    git add plugin/.claude-plugin/plugin.json pyproject.toml CHANGELOG.md
+    git commit -m "release: testpods-agent v$VERSION"
+
+    echo ""
+    echo "==> Tagging testpods-agent/v$VERSION"
+    git tag -a "testpods-agent/v$VERSION" -m "Release testpods-agent v$VERSION"
+
+    echo ""
+    echo ""
+    echo "==> Validating marketplace repo"
+    MARKETPLACE="../../java-expert-agent-project/claude-plugins"
+    if [ ! -d "$MARKETPLACE" ]; then
+        echo "Error: marketplace repo not found at $MARKETPLACE" >&2
+        echo "Expected claude-plugins repo at ../../java-expert-agent-project/claude-plugins" >&2
+        exit 1
+    fi
+    if ! git -C "$MARKETPLACE" diff --quiet || ! git -C "$MARKETPLACE" diff --cached --quiet; then
+        echo "Error: marketplace repo has uncommitted changes" >&2
+        exit 1
+    fi
+
+    echo "==> Updating marketplace"
+    uv run --script scripts/release/update_marketplace.py "$VERSION"
+
+    echo ""
+    echo "Release testpods-agent v$VERSION prepared locally."
+    echo ""
+    echo "Review the changes, then run:"
+    echo "  just release-push"
+
+# Push the release: push testpods repo (with tags) and marketplace repo
+release-push:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    version=$(jq -r .version plugin/.claude-plugin/plugin.json)
+    echo "==> Pushing testpods repo (with tags)"
+    git push origin HEAD --tags
+
+    marketplace="../../java-expert-agent-project/claude-plugins"
+    if [ -d "$marketplace" ]; then
+        echo "==> Pushing claude-plugins marketplace"
+        git -C "$marketplace" push origin main
+    else
+        echo "Warning: marketplace repo not found at $marketplace" >&2
+        echo "Push claude-plugins manually." >&2
+    fi
+
+    echo ""
+    echo "Release testpods-agent v$version pushed!"

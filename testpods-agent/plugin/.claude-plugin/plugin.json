@@ -1,0 +1,13 @@
+{
+  "name": "testpods-agent",
+  "version": "0.1.0",
+  "description": "TestPods expert agents — planning, building, and reviewing for the TestPods Kubernetes testing library",
+  "author": {
+    "name": "testpods-org",
+    "url": "https://github.com/testpods-org"
+  },
+  "homepage": "https://github.com/testpods-org/testpods",
+  "repository": "https://github.com/testpods-org/testpods",
+  "license": "MIT",
+  "keywords": ["testpods", "kubernetes", "testing", "java", "agents"]
+}
