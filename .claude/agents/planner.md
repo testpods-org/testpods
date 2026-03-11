@@ -61,7 +61,7 @@ Create plans using this structure:
 
 ## Implementation Steps
 
-### Status: Pending | Step 1: [Step Title]
+### Status: ❌ | Step 1: [Step Title]
 [Detailed description of what to implement]
 
 **Files:**
@@ -71,7 +71,7 @@ Create plans using this structure:
 - [ ] Criterion 1
 - [ ] Criterion 2
 
-### Status: Pending | Step 2: [Step Title]
+### Status: ❌ | Step 2: [Step Title]
 ...
 
 ## Testing Strategy

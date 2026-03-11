@@ -1,0 +1,6 @@
+{
+  "name": "jdtls",
+  "version": "0.1.0",
+  "description": "Eclipse JDT Language Server for Java",
+  "keywords": ["java", "lsp", "language-server", "eclipse"]
+}
