@@ -20,7 +20,7 @@ org.testpods.core/
 │   └── PropertyContext.java        # Shared property registry for pod-to-pod config
 │
 ├── namespace/
-│   └── TestNamespace.java          # Kubernetes namespace wrapper
+│   └── Namespace.java          # Kubernetes namespace wrapper
 │
 ├── wait/
 │   ├── WaitStrategy.java           # Interface with factory methods

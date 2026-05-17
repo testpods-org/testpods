@@ -14,7 +14,7 @@
 Current implementation uses unsafe static fields:
 ```java
 private static Supplier<K8sCluster> clusterSupplier;
-private static TestNamespace sharedNamespace;
+private static Namespace sharedNamespace;
 ```
 
 ### Solution Statement
@@ -87,7 +87,7 @@ Replace thread-unsafe static fields with thread-safe `InheritableThreadLocal` st
 3. Update setter methods to use `getOrCreateContext()` pattern:
    - `setClusterSupplier(Supplier<K8sCluster>)` - stores in context
    - `setNamespaceNameSupplier(Supplier<String>)` - stores in context
-   - `setSharedNamespace(TestNamespace)` - stores in context
+   - `setSharedNamespace(Namespace)` - stores in context
 
 4. Update getter/resolution methods with null-safety:
    - `resolveCluster()` - throws `IllegalStateException` if no supplier configured

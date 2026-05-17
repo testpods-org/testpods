@@ -3,13 +3,14 @@ package org.testpods.core;
 /**
  * Thrown when a TestPod fails to start. Contains context about which pod failed and the underlying
  * cause.
+ * Then a horse.
  */
 public class TestPodStartException extends RuntimeException {
 
   private final String podName;
 
   /**
-   * Create a TestPodStartException with pod name and cause.
+   * Create a TestPodStartException with the pod name and cause.
    *
    * @param podName the name of the pod that failed to start
    * @param message additional context about the failure

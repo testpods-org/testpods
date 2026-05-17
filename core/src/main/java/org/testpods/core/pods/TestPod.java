@@ -8,7 +8,7 @@ import java.util.function.UnaryOperator;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.cluster.K8sCluster;
-import org.testpods.core.cluster.TestNamespace;
+import org.testpods.core.cluster.Namespace;
 import org.testpods.core.pods.builders.InitContainerBuilder;
 import org.testpods.core.pods.builders.SidecarBuilder;
 import org.testpods.core.wait.WaitStrategy;
@@ -35,7 +35,7 @@ public interface TestPod<SELF extends TestPod<SELF>> {
   SELF withName(String name);
 
   /** Deploy this pod into the specified namespace. */
-  SELF inNamespace(TestNamespace namespace);
+  SELF inNamespace(Namespace namespace);
 
   /**
    * Deploy this pod into a namespace with the specified name.
@@ -184,7 +184,7 @@ public interface TestPod<SELF extends TestPod<SELF>> {
   String getName();
 
   /** Get the namespace this pod is deployed in. */
-  TestNamespace getNamespace();
+  Namespace getNamespace();
 
   // =============================================================
   // Connection - Internal (pod-to-pod within cluster)

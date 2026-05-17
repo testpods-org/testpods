@@ -128,7 +128,7 @@ public class KafkaPod extends BaseTestPod<KafkaPod> {
 package org.testpods.core.pods.external.kafka;
 
 import org.testpods.core.cluster.HostAndPort;
-import org.testpods.core.cluster.TestNamespace;
+import org.testpods.core.cluster.Namespace;
 import org.testpods.core.pods.BaseTestPod;
 import org.testpods.core.wait.WaitStrategy;
 

@@ -18,7 +18,7 @@ import java.util.function.UnaryOperator;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.cluster.K8sCluster;
-import org.testpods.core.cluster.TestNamespace;
+import org.testpods.core.cluster.Namespace;
 import org.testpods.core.pods.builders.InitContainerBuilder;
 import org.testpods.core.pods.builders.SidecarBuilder;
 import org.testpods.core.wait.WaitStrategy;
@@ -57,7 +57,7 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
   // =============================================================
 
   protected String name;
-  protected TestNamespace namespace;
+  protected Namespace namespace;
   protected final Map<String, String> labels = new LinkedHashMap<>();
   protected final Map<String, String> annotations = new LinkedHashMap<>();
   protected String cpuRequest;
@@ -101,7 +101,7 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
   }
 
   @Override
-  public SELF inNamespace(TestNamespace namespace) {
+  public SELF inNamespace(Namespace namespace) {
     this.namespace = namespace;
     return self();
   }
@@ -183,7 +183,7 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
   }
 
   @Override
-  public TestNamespace getNamespace() {
+  public Namespace getNamespace() {
     return namespace;
   }
 
@@ -290,7 +290,7 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
    * following precedence:
    *
    * <ol>
-   *   <li>Explicit namespace set via {@link #inNamespace(TestNamespace)}
+   *   <li>Explicit namespace set via {@link #inNamespace(Namespace)}
    *   <li>Shared namespace from {@link TestPodDefaults#getSharedNamespace()}
    *   <li>Create new namespace using explicit cluster + explicit name
    *   <li>Create new namespace using resolved cluster + resolved name from defaults
@@ -306,7 +306,7 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
     }
 
     // Check for shared namespace from TestPodDefaults (set by JUnit extension)
-    TestNamespace shared = TestPodDefaults.getSharedNamespace();
+    Namespace shared = TestPodDefaults.getSharedNamespace();
     if (shared != null) {
       this.namespace = shared;
       return;
@@ -325,7 +325,7 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
     }
 
     // Create the namespace
-    this.namespace = new TestNamespace(cluster, nsName);
+    this.namespace = new Namespace(cluster, nsName);
   }
 
   /** Get the Kubernetes client from the namespace's cluster. */

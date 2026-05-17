@@ -112,7 +112,7 @@ io.fabric8.kubernetes.api.model.ContainerBuilder
 
 | Class | Type | Description |
 |-------|------|-------------|
-| `TestNamespace` | Class | Kubernetes namespace wrapper |
+| `Namespace` | Class | Kubernetes namespace wrapper |
 
 ### Wait Package (`org.testpods.core.wait`)
 

@@ -56,7 +56,7 @@ import org.junit.platform.commons.support.HierarchyTraversalMode;
 import org.junit.platform.commons.support.ReflectionSupport;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.cluster.NamespaceNaming;
-import org.testpods.core.cluster.TestNamespace;
+import org.testpods.core.cluster.Namespace;
 import org.testpods.core.pods.TestPod;
 import org.testpods.core.pods.TestPodDefaults;
 
@@ -93,7 +93,7 @@ public class TestPodsExtension implements
 
         // 2. Create shared namespace for this test class
         String namespaceName = NamespaceNaming.forTestClass(testClass);
-        TestNamespace sharedNamespace = new TestNamespace(cluster, namespaceName);
+        Namespace sharedNamespace = new Namespace(cluster, namespaceName);
         sharedNamespace.createIfNotExists();
 
         // 3. Register namespace for cleanup
@@ -229,9 +229,9 @@ public class TestPodsExtension implements
 
     private static class NamespaceCloseableResource
             implements ExtensionContext.Store.CloseableResource {
-        private final TestNamespace namespace;
+        private final Namespace namespace;
 
-        NamespaceCloseableResource(TestNamespace namespace) {
+        NamespaceCloseableResource(Namespace namespace) {
             this.namespace = namespace;
         }
 
@@ -316,13 +316,13 @@ public enum CleanupPolicy {
 ```java
 // Add to existing class:
 
-private static TestNamespace sharedNamespace;
+private static Namespace sharedNamespace;
 
-public static void setSharedNamespace(TestNamespace namespace) {
+public static void setSharedNamespace(Namespace namespace) {
     sharedNamespace = namespace;
 }
 
-public static TestNamespace getSharedNamespace() {
+public static Namespace getSharedNamespace() {
     return sharedNamespace;
 }
 
@@ -333,7 +333,7 @@ public static void clear() {
 }
 ```
 
-5. `core/src/main/java/org/testpods/core/cluster/TestNamespace.java` - Add methods:
+5. `core/src/main/java/org/testpods/core/cluster/Namespace.java` - Add methods:
 
 ```java
 // Add to existing class:

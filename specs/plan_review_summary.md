@@ -84,7 +84,7 @@
 
 ### What Existing Code Already Has
 
-- `TestNamespace.java` - has `create()` and `close()`
+- `Namespace.java` - has `create()` and `close()`
 - `NamespaceNaming.java` - has `forTestClass()`
 - `StatefulSetPod.java` - has full lifecycle
 - `BaseTestPod.java` - comprehensive (possibly too comprehensive)

@@ -21,7 +21,7 @@ org.testpods.core/
 │   └── PropertyContext.java        # Shared property registry for pod-to-pod config
 │
 ├── namespace/
-│   └── TestNamespace.java          # Kubernetes namespace wrapper
+│   └── Namespace.java          # Kubernetes namespace wrapper
 │
 ├── wait/
 │   ├── WaitStrategy.java           # Interface with factory methods
@@ -160,7 +160,7 @@ Our builders are **simplified facades** that produce Fabric8 `Container` objects
 | 7 | `ExternalAccessStrategy.java` | Interface + Implementations |
 | 8 | `HostAndPort.java` | Record |
 | 9 | `PropertyContext.java` | Class |
-| 10 | `TestNamespace.java` | Class |
+| 10 | `Namespace.java` | Class |
 | 11 | `WaitStrategy.java` | Interface |
 | 12 | `ReadinessProbeWaitStrategy.java` | Class |
 | 13 | `LogMessageWaitStrategy.java` | Class |

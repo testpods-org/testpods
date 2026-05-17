@@ -9,12 +9,12 @@
 
 ## Overview
 
-Enhance `TestNamespace` and `K8sCluster` to fully support the JUnit extension's lifecycle needs, including namespace creation, deletion, random suffix generation, and cleanup policies.
+Enhance `Namespace` and `K8sCluster` to fully support the JUnit extension's lifecycle needs, including namespace creation, deletion, random suffix generation, and cleanup policies.
 
 ## Problem Statement
 
-The existing `TestNamespace` and `K8sCluster` classes need enhancements:
-- `TestNamespace` needs `createIfNotExists()` and `delete()` methods
+The existing `Namespace` and `K8sCluster` classes need enhancements:
+- `Namespace` needs `createIfNotExists()` and `delete()` methods
 - `NamespaceNaming` needs to generate unique names with random suffixes
 - Cleanup policies (MANAGED, NAMESPACE, NONE) need implementation
 
@@ -150,9 +150,9 @@ public final class NamespaceNaming {
 }
 ```
 
-### TestNamespace Updates
+### Namespace Updates
 
-**File:** `core/src/main/java/org/testpods/core/cluster/TestNamespace.java`
+**File:** `core/src/main/java/org/testpods/core/cluster/Namespace.java`
 
 ```java
 package org.testpods.core.cluster;
@@ -168,7 +168,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Represents a Kubernetes namespace for test resources.
  *
- * <p>TestNamespace manages the lifecycle of a Kubernetes namespace including:
+ * <p>Namespace manages the lifecycle of a Kubernetes namespace including:
  * <ul>
  *   <li>Creation (idempotent)</li>
  *   <li>Deletion with wait for cleanup</li>
@@ -178,7 +178,7 @@ import java.util.concurrent.TimeUnit;
  * <h2>Usage</h2>
  * <pre>{@code
  * K8sCluster cluster = K8sCluster.discover();
- * TestNamespace ns = new TestNamespace(cluster, "testpods-mytest-abc12");
+ * Namespace ns = new Namespace(cluster, "testpods-mytest-abc12");
  * ns.createIfNotExists();
  *
  * // Use namespace for pods...
@@ -186,21 +186,21 @@ import java.util.concurrent.TimeUnit;
  * ns.delete();  // Cleanup
  * }</pre>
  */
-public class TestNamespace {
+public class Namespace {
 
-    private static final Logger LOG = LoggerFactory.getLogger(TestNamespace.class);
+    private static final Logger LOG = LoggerFactory.getLogger(Namespace.class);
 
     private final K8sCluster cluster;
     private final String name;
     private boolean created = false;
 
     /**
-     * Create a TestNamespace reference.
+     * Create a Namespace reference.
      *
      * @param cluster the Kubernetes cluster
      * @param name    namespace name
      */
-    public TestNamespace(K8sCluster cluster, String name) {
+    public Namespace(K8sCluster cluster, String name) {
         this.cluster = cluster;
         this.name = name;
     }
@@ -226,7 +226,7 @@ public class TestNamespace {
      *
      * @return this namespace for chaining
      */
-    public TestNamespace createIfNotExists() {
+    public Namespace createIfNotExists() {
         KubernetesClient client = cluster.getClient();
         Namespace existing = client.namespaces().withName(name).get();
 
@@ -326,7 +326,7 @@ public class TestNamespace {
     }
 
     /**
-     * Check if this namespace was created by this TestNamespace instance.
+     * Check if this namespace was created by this Namespace instance.
      */
     public boolean wasCreated() {
         return created;
@@ -342,7 +342,7 @@ public class TestNamespace {
 
     @Override
     public String toString() {
-        return "TestNamespace[" + name + "]";
+        return "Namespace[" + name + "]";
     }
 }
 ```
@@ -370,7 +370,7 @@ public interface ExternalAccessStrategy {
      * @param servicePort the service port (internal)
      * @return host and port accessible from the test machine
      */
-    HostAndPort getExternalAccess(TestNamespace namespace, String serviceName, int servicePort);
+    HostAndPort getExternalAccess(Namespace namespace, String serviceName, int servicePort);
 }
 ```
 
@@ -386,7 +386,7 @@ import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import org.testpods.core.cluster.ExternalAccessStrategy;
 import org.testpods.core.cluster.HostAndPort;
-import org.testpods.core.cluster.TestNamespace;
+import org.testpods.core.cluster.Namespace;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
@@ -407,7 +407,7 @@ public class MinikubeExternalAccessStrategy implements ExternalAccessStrategy {
     }
 
     @Override
-    public HostAndPort getExternalAccess(TestNamespace namespace, String serviceName, int servicePort) {
+    public HostAndPort getExternalAccess(Namespace namespace, String serviceName, int servicePort) {
         String host = getMinikubeIp();
         int nodePort = getNodePort(namespace, serviceName, servicePort);
         return new HostAndPort(host, nodePort);
@@ -439,7 +439,7 @@ public class MinikubeExternalAccessStrategy implements ExternalAccessStrategy {
         }
     }
 
-    private int getNodePort(TestNamespace namespace, String serviceName, int servicePort) {
+    private int getNodePort(Namespace namespace, String serviceName, int servicePort) {
         KubernetesClient client = namespace.getCluster().getClient();
 
         Service service = client.services()
@@ -473,9 +473,9 @@ public class MinikubeExternalAccessStrategy implements ExternalAccessStrategy {
 ### Functional Requirements
 
 - [ ] `NamespaceNaming.forTestClass()` generates unique names with 5-char random suffix
-- [ ] `TestNamespace.createIfNotExists()` is idempotent
-- [ ] `TestNamespace.delete()` waits for namespace deletion
-- [ ] `TestNamespace.deleteManagedResources()` only deletes labeled resources
+- [ ] `Namespace.createIfNotExists()` is idempotent
+- [ ] `Namespace.delete()` waits for namespace deletion
+- [ ] `Namespace.deleteManagedResources()` only deletes labeled resources
 - [ ] `MinikubeExternalAccessStrategy` returns correct NodePort access
 
 ### Quality Gates
@@ -518,7 +518,7 @@ class NamespaceNamingTest {
     }
 }
 
-class TestNamespaceTest {
+class NamespaceTest {
 
     @Test
     void createShouldBeIdempotent() {

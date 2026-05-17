@@ -65,7 +65,7 @@ interface Pod<SELF extends Pod<SELF>> {
     
     // Fluent configuration
     public SELF withName(String name);
-    public SELF inNamespace(TestNamespace namespace);
+    public SELF inNamespace(Namespace namespace);
     public SELF withLabels(Map<String, String> labels);
     public SELF withAnnotations(Map<String, String> annotations);
     
@@ -261,20 +261,20 @@ public interface K8sCluster extends Closeable {
 }
 ```
 
-### TestNamespace (Isolation Boundary)
+### Namespace (Isolation Boundary)
 
 Analogous to Testcontainers Network:
 
 ```java
-public class TestNamespace implements Closeable {
+public class Namespace implements Closeable {
     
-    public TestNamespace(K8sCluster cluster);
+    public Namespace(K8sCluster cluster);
     
-    public TestNamespace withName(String name);
-    public TestNamespace withRandomSuffix();         // test-abc123
-    public TestNamespace withNetworkPolicy(NetworkPolicySpec policy);
-    public TestNamespace withResourceQuota(ResourceQuotaSpec quota);
-    public TestNamespace deleteOnClose(boolean delete);
+    public Namespace withName(String name);
+    public Namespace withRandomSuffix();         // test-abc123
+    public Namespace withNetworkPolicy(NetworkPolicySpec policy);
+    public Namespace withResourceQuota(ResourceQuotaSpec quota);
+    public Namespace deleteOnClose(boolean delete);
     
     public String getName();
     public K8sCluster getCluster();
@@ -705,7 +705,7 @@ class OrderServiceIT {
     static K8sCluster cluster = K8sCluster.minikube();
     
     @RegisterNamespace
-    static TestNamespace namespace = new TestNamespace(cluster).withRandomSuffix();
+    static Namespace namespace = new Namespace(cluster).withRandomSuffix();
     
     @TestPod
     static MongoDBPod mongo = new MongoDBPod()
@@ -739,7 +739,7 @@ class OrderSystemIT {
     static PropertyContext props = new PropertyContext();
     
     @RegisterNamespace
-    static TestNamespace namespace = new TestNamespace(K8sCluster.minikube());
+    static Namespace namespace = new Namespace(K8sCluster.minikube());
     
     @ServiceGroup
     static ServiceGroup infrastructure = ServiceGroup.named("infrastructure")

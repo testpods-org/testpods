@@ -1,4 +1,4 @@
-# Testpods Library - Product Requirements Document
+# TestPods Library - Product Requirements Document
 
 **Version:** 0.1.0 (Draft)
 **Last Updated:** 2026-01-09
@@ -7,7 +7,7 @@
 ---
 
 <!-- TOC -->
-- [Testpods Library - Product Requirements Document](#testpods-library---product-requirements-document)
+- [TestPods Library - Product Requirements Document](#testpods-library---product-requirements-document)
 - [Table of Contents](#table-of-contents)
   - [1. Executive Summary](01_executive_summary.md)
     - [1.1. Vision](01_executive_summary.md#11-vision)

@@ -23,7 +23,7 @@
 
 ## 7.1. Scenario Overview
 
-A critical use case for Testpods is testing a Spring Boot service that operates within a larger system consisting of:
+A critical use case for TestPods is testing a Spring Boot service that operates within a larger system consisting of:
 - **Shared infrastructure**: Databases, message brokers, caches (e.g., Kafka, PostgreSQL, Redis)
 - **Companion services**: Other Spring Boot microservices that are part of the same application/system
 - **Service under test**: The Spring Boot application being tested, started via standard `@SpringBootTest`
@@ -130,10 +130,10 @@ This approach separates infrastructure and services into reusable configuration 
  */
 public class ECommerceInfrastructure {
 
-    private final TestpodsInfrastructure infrastructure;
+    private final TestPodsInfrastructure infrastructure;
 
     public ECommerceInfrastructure() {
-        this.infrastructure = TestpodsInfrastructure.builder()
+        this.infrastructure = TestPodsInfrastructure.builder()
             .postgresql("orders-db")
                 .database("ecommerce")
                 .schema("orders", "inventory", "notifications")
@@ -208,10 +208,10 @@ public class ECommerceInfrastructure {
  */
 public class ECommerceServices {
 
-    private final TestpodsServices services;
+    private final TestPodsServices services;
 
     public ECommerceServices(ECommerceInfrastructure infrastructure) {
-        this.services = TestpodsServices.builder()
+        this.services = TestPodsServices.builder()
             .service("inventory-service")
                 .image("mycompany/inventory-service:latest")
                 .environment(infrastructure.asEnvironment())
@@ -328,7 +328,7 @@ public class ECommerceTestEnvironment implements TestEnvironment {
 **JUnit Test Using the Environment:**
 ```java
 @SpringBootTest(classes = OrderServiceApplication.class)
-@Testpods
+@TestPods
 class OrderServiceIntegrationTest {
 
     // Shared environment instance - started once for all tests in class
@@ -404,7 +404,7 @@ For simpler cases or when preferring annotation-based configuration:
 
 ```java
 @SpringBootTest
-@TestpodsEnvironment(
+@TestPodsEnvironment(
     infrastructure = @Infrastructure(
         postgresql = @PostgreSQL(
             name = "db",
@@ -435,7 +435,7 @@ For simpler cases or when preferring annotation-based configuration:
 class OrderServiceIntegrationTest {
 
     @Autowired
-    TestpodsContext testpods;  // Injected by Testpods extension
+    TestPodsContext testpods;  // Injected by TestPods extension
 
     @Autowired
     OrderService orderService;
@@ -506,16 +506,16 @@ spec:
 **Java test using YAML:**
 ```java
 @SpringBootTest
-@Testpods
+@TestPods
 @TestEnvironmentConfig("classpath:test-environment.yaml")
 class OrderServiceIntegrationTest {
 
     @Autowired
-    TestpodsEnvironment env;
+    TestPodsEnvironment env;
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
-        TestpodsEnvironment.loadFromConfig("classpath:test-environment.yaml")
+        TestPodsEnvironment.loadFromConfig("classpath:test-environment.yaml")
             .getSpringProperties()
             .forEach(registry::add);
     }
@@ -528,7 +528,7 @@ class OrderServiceIntegrationTest {
 
 ### 7.5.1. Automatic Property Mapping
 
-Testpods automatically maps infrastructure connection info to standard Spring Boot properties:
+TestPods automatically maps infrastructure connection info to standard Spring Boot properties:
 
 | Infrastructure | Spring Property | Example Value |
 |---------------|-----------------|---------------|
@@ -570,7 +570,7 @@ infrastructure.toEnvironmentVariables(EnvVarNaming.builder()
 │                           Test Lifecycle                                    │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  1. @BeforeAll / Testpods Extension Initialization                          │
+│  1. @BeforeAll / TestPods Extension Initialization                          │
 │     │                                                                       │
 │     ├─► Start Infrastructure (Parallel where possible)                      │
 │     │   ├─► PostgreSQL ──► Wait for ready ─┐                                │

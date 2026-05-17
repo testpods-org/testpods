@@ -11,7 +11,7 @@
 
 ## 9.1. Overview
 
-A future enhancement to Testpods could support testing custom Kubernetes Operators as the "service under test" rather than traditional Spring Boot applications. This is a distinct but related use case.
+A future enhancement to TestPods could support testing custom Kubernetes Operators as the "service under test" rather than traditional Spring Boot applications. This is a distinct but related use case.
 
 ## 9.2. Operator Testing vs Service Testing
 
@@ -27,14 +27,14 @@ A future enhancement to Testpods could support testing custom Kubernetes Operato
 ## 9.3. Conceptual API for Operator Testing
 
 ```java
-@Testpods
+@TestPods
 class OrderProcessorOperatorTest {
 
     static ECommerceInfrastructure infra = new ECommerceInfrastructure();
 
     // Operator under test - built and deployed to cluster
     @OperatorUnderTest
-    static TestpodsOperator operator = TestpodsOperator.builder()
+    static TestPodsOperator operator = TestPodsOperator.builder()
         .name("order-processor-operator")
         .fromLocalSource("./operator")
             .buildTool(BuildTool.OPERATOR_SDK)

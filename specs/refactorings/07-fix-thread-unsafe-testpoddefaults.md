@@ -14,7 +14,7 @@
 // Current implementation (THREAD-UNSAFE)
 public class TestPodDefaults {
     private static Supplier<K8sCluster> clusterSupplier;
-    private static TestNamespace sharedNamespace;
+    private static Namespace sharedNamespace;
 
     public static void setClusterSupplier(Supplier<K8sCluster> supplier) {
         clusterSupplier = supplier;  // Static field - NOT THREAD SAFE!
@@ -47,7 +47,7 @@ public class TestPodDefaults {
     private static final InheritableThreadLocal<Supplier<K8sCluster>> clusterSupplier =
         new InheritableThreadLocal<>();
 
-    private static final InheritableThreadLocal<TestNamespace> sharedNamespace =
+    private static final InheritableThreadLocal<Namespace> sharedNamespace =
         new InheritableThreadLocal<>();
 
     public static void setClusterSupplier(Supplier<K8sCluster> supplier) {
@@ -63,11 +63,11 @@ public class TestPodDefaults {
         return supplier.get();
     }
 
-    public static void setSharedNamespace(TestNamespace namespace) {
+    public static void setSharedNamespace(Namespace namespace) {
         sharedNamespace.set(namespace);
     }
 
-    public static TestNamespace getSharedNamespace() {
+    public static Namespace getSharedNamespace() {
         return sharedNamespace.get();
     }
 

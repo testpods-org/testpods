@@ -30,7 +30,7 @@ The following are the original brainstorming notes, preserved for reference:
 
 ```java
 @Testcluster
-@Testpods
+@TestPods
 class CustomerServiceWithJUnit5ExtensionTest {
 
 @Testpod // started per test class
@@ -44,7 +44,7 @@ PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine"
 @DeploymentGroup / @StatefulSetGroup // however when testing the difference is not important but the grouping is.
 @ServiceGroup
 
-@Testpods - this is similar to TestContainers but the Enable name is more like SpringBoot convetion and signals that it now is active
+@TestPods - this is similar to TestContainers but the Enable name is more like SpringBoot convetion and signals that it now is active
 @EnableTestPods  // Auto-registers extension, scans for @TestPod etc. field
 // What to place where? If another class from another support lib as some TestPodCatalog and we want to use it in a test. Then what should trigger it being found?
 // EnableTestPods on test class seems to be enough
@@ -118,7 +118,7 @@ class ApplicationK8sResources {
     static K8sCluster cluster = K8sCluster.minikube();
 
     @RegisterNamespace
-    static TestNamespace testNS = new TestNamespace(cluster).withRandomSuffix();
+    static Namespace testNS = new Namespace(cluster).withRandomSuffix();
 
     @RegisterTestPodCatalog
     static TestPodCatalog infrastructureCatalog =

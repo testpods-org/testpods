@@ -23,7 +23,7 @@ The specs should be implemented in this order due to dependencies:
 ┌─────────────────────────────────────────────────────────────┐
 │ 1. Spec 05: Namespace and Cluster Management               │
 │    - Foundation for all other specs                        │
-│    - NamespaceNaming, TestNamespace, ExternalAccessStrategy│
+│    - NamespaceNaming, Namespace, ExternalAccessStrategy│
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -37,7 +37,7 @@ The specs should be implemented in this order due to dependencies:
 ┌─────────────────────────────────────────────────────────────┐
 │ 3. Spec 01: JUnit Extension Implementation                 │
 │    - Core extension with @TestPods, @Pod field discovery   │
-│    - Uses TestNamespace for lifecycle                      │
+│    - Uses Namespace for lifecycle                      │
 └─────────────────────────────────────────────────────────────┘
                               │
                               ▼

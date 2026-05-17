@@ -2,8 +2,8 @@ package org.testpods.core.pods;
 
 import java.util.function.Supplier;
 import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.Namespace;
 import org.testpods.core.cluster.NamespaceNaming;
-import org.testpods.core.cluster.TestNamespace;
 
 /**
  * Configurable defaults for TestPod instances with thread-safe isolation.
@@ -89,7 +89,7 @@ public final class TestPodDefaults {
   // Global defaults (fallback when no thread-local context)
   private static volatile Supplier<K8sCluster> globalClusterSupplier;
   private static volatile Supplier<String> globalNamespaceNameSupplier;
-  private static volatile TestNamespace globalSharedNamespace;
+  private static volatile Namespace globalSharedNamespace;
 
   private TestPodDefaults() {}
 
@@ -121,7 +121,7 @@ public final class TestPodDefaults {
    *
    * @param namespace the shared namespace for this thread
    */
-  public static void setSharedNamespace(TestNamespace namespace) {
+  public static void setSharedNamespace(Namespace namespace) {
     getOrCreateContext().sharedNamespace = namespace;
   }
 
@@ -179,7 +179,7 @@ public final class TestPodDefaults {
    *
    * @param namespace the global shared namespace
    */
-  public static void setGlobalSharedNamespace(TestNamespace namespace) {
+  public static void setGlobalSharedNamespace(Namespace namespace) {
     globalSharedNamespace = namespace;
   }
 
@@ -212,7 +212,7 @@ public final class TestPodDefaults {
    *
    * @return Shared namespace, or null if none configured
    */
-  public static TestNamespace getSharedNamespace() {
+  public static Namespace getSharedNamespace() {
     Context ctx = THREAD_CONTEXT.get();
     if (ctx != null && ctx.sharedNamespace != null) {
       return ctx.sharedNamespace;
@@ -300,12 +300,12 @@ public final class TestPodDefaults {
    * Mutable context holder for thread-local state.
    *
    * <p>This class uses volatile fields to ensure visibility across threads when the context is
-   * copied to child threads via {@link InheritableThreadLocal#childValue(Object)}.
+   * copied to child threads via {@link InheritableThreadLocal#child‘Value(Object)}.
    */
   private static class Context {
     volatile Supplier<K8sCluster> clusterSupplier;
     volatile Supplier<String> namespaceNameSupplier;
-    volatile TestNamespace sharedNamespace;
+    volatile Namespace sharedNamespace;
 
     /** Create an empty context. */
     Context() {}

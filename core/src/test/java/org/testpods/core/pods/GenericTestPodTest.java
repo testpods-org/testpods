@@ -8,7 +8,7 @@ import io.fabric8.kubernetes.client.dsl.ServiceResource;
 import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.testpods.core.cluster.K8sCluster;
-import org.testpods.core.cluster.TestNamespace;
+import org.testpods.core.cluster.Namespace;
 import org.testpods.core.cluster.client.MinikubeCluster;
 import org.testpods.core.wait.WaitStrategy;
 
@@ -20,7 +20,7 @@ class GenericTestPodTest {
   @Test
   public void explicitClusterAndNamespace() throws IOException {
     MinikubeCluster cluster = MinikubeCluster.create();
-    TestNamespace namespace = new TestNamespace(cluster);
+    Namespace namespace = new Namespace(cluster);
     try {
       GenericTestPod nginx =
           new GenericTestPod("nginx:1.25")
@@ -131,7 +131,7 @@ class GenericTestPodTest {
   }
 
   private static ServiceResource<Service> getServiceResource(
-      KubernetesClient client, TestNamespace namespace, GenericTestPod pod) {
+          KubernetesClient client, Namespace namespace, GenericTestPod pod) {
     return client.services().inNamespace(namespace.getName()).withName(pod.getName());
   }
 }

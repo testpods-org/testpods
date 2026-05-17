@@ -16,13 +16,13 @@
 **Goal**: Test a Spring Boot application with a PostgreSQL database running in a Kubernetes pod
 
 **Flow**:
-1. Developer annotates JUnit test with `@Testpods`
+1. Developer annotates JUnit test with `@TestPods`
 2. Test defines a PostgreSQL container using fluent API
-3. Testpods starts Minikube cluster (if not running)
-4. Testpods deploys PostgreSQL as a pod with service
+3. TestPods starts Minikube cluster (if not running)
+4. TestPods deploys PostgreSQL as a pod with service
 5. Test application connects to PostgreSQL via Kubernetes service DNS
 6. Test executes application logic
-7. Testpods tears down pod after test completion
+7. TestPods tears down pod after test completion
 
 ## 5.2. UC-2: Multi-Container Pod Testing
 

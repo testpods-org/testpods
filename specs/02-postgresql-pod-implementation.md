@@ -853,7 +853,7 @@ classDiagram
     class BaseTestPod {
         <<abstract>>
         #name: String
-        #namespace: TestNamespace
+        #namespace: Namespace
         +withName()
         +inNamespace()
     }

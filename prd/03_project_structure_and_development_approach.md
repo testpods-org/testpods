@@ -14,17 +14,17 @@
 
 ## 3.1. Project Structure
 
-The Testpods project consists of three main artifacts:
+The TestPods project consists of three main artifacts:
 
 1. **testpods-core** (Java Library Artifact)
-   - The main Java library containing the core Testpods framework
+   - The main Java library containing the core TestPods framework
    - Runtime adapters for CRI-compliant container runtimes
    - Built-in modules for common infrastructure components
    - JUnit integration and fluent API
    - Distributed as Maven/Gradle dependency
 
 2. **testpods-examples** (Java Examples Artifact)
-   - Comprehensive example projects demonstrating Testpods usage
+   - Comprehensive example projects demonstrating TestPods usage
    - Integration test examples for various scenarios
    - Module usage demonstrations
    - Custom module creation examples
@@ -42,7 +42,7 @@ The Testpods project consists of three main artifacts:
 
 ## 3.2. Development Approach: Agentic Engineering
 
-The Testpods project employs an **agentic development strategy** inspired by IndyDevDan's tactical agentic coding methodology. This approach fundamentally changes how the project is developed and evolved.
+The TestPods project employs an **agentic development strategy** inspired by IndyDevDan's tactical agentic coding methodology. This approach fundamentally changes how the project is developed and evolved.
 
 ### 3.2.1. Agentic Layer Architecture
 
@@ -76,7 +76,7 @@ The project is wrapped in an agentic layer that enables the lead developer to or
          └────────────┬───────────┘
                       │
          ┌────────────▼────────────┐
-         │   Testpods Codebase     │
+         │   TestPods Codebase     │
          │ (core, examples, docs)  │
          └─────────────────────────┘
 ```

@@ -19,7 +19,7 @@ Fix thread-safety issues in `TestPodDefaults` by replacing static fields with `I
 // Current implementation (THREAD-UNSAFE)
 public class TestPodDefaults {
     private static Supplier<K8sCluster> clusterSupplier;
-    private static TestNamespace sharedNamespace;
+    private static Namespace sharedNamespace;
 
     public static void setClusterSupplier(Supplier<K8sCluster> supplier) {
         clusterSupplier = supplier;  // Static field - NOT THREAD SAFE!
@@ -47,7 +47,7 @@ public class TestPodDefaults {
     private static final InheritableThreadLocal<Supplier<K8sCluster>> clusterSupplier =
         new InheritableThreadLocal<>();
 
-    private static final InheritableThreadLocal<TestNamespace> sharedNamespace =
+    private static final InheritableThreadLocal<Namespace> sharedNamespace =
         new InheritableThreadLocal<>();
 
     public static void setClusterSupplier(Supplier<K8sCluster> supplier) {
@@ -115,7 +115,7 @@ public class TestPodDefaults {
 package org.testpods.core.pods;
 
 import org.testpods.core.cluster.K8sCluster;
-import org.testpods.core.cluster.TestNamespace;
+import org.testpods.core.cluster.Namespace;
 import java.util.function.Supplier;
 
 /**
@@ -148,7 +148,7 @@ public final class TestPodDefaults {
         getOrCreateContext().namespaceNameSupplier = supplier;
     }
 
-    public static void setSharedNamespace(TestNamespace namespace) {
+    public static void setSharedNamespace(Namespace namespace) {
         getOrCreateContext().sharedNamespace = namespace;
     }
 
@@ -181,7 +181,7 @@ public final class TestPodDefaults {
         return null;  // Will use default naming
     }
 
-    public static TestNamespace getSharedNamespace() {
+    public static Namespace getSharedNamespace() {
         Context ctx = THREAD_CONTEXT.get();
         return ctx != null ? ctx.sharedNamespace : null;
     }
@@ -210,7 +210,7 @@ public final class TestPodDefaults {
     private static class Context {
         volatile Supplier<K8sCluster> clusterSupplier;
         volatile Supplier<String> namespaceNameSupplier;
-        volatile TestNamespace sharedNamespace;
+        volatile Namespace sharedNamespace;
 
         Context() {}
 

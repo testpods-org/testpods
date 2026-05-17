@@ -20,7 +20,7 @@
 
 ## 8.1. Architectural Layers Overview
 
-The Testpods testing model consists of four distinct layers, each potentially including both direct deployments and Kubernetes Operators:
+The TestPods testing model consists of four distinct layers, each potentially including both direct deployments and Kubernetes Operators:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -154,14 +154,14 @@ Operators that manage platform infrastructure declaratively:
 
 ## 8.5. Infrastructure Deployment Options
 
-Testpods supports two approaches for infrastructure, allowing developers to choose based on their needs:
+TestPods supports two approaches for infrastructure, allowing developers to choose based on their needs:
 
 ### 8.5.1. Option 1: Direct Container Deployment (Default)
 
 Simple, fast, suitable for most integration tests:
 
 ```java
-TestpodsInfrastructure.builder()
+TestPodsInfrastructure.builder()
     .postgresql("db")
         .database("myapp")
         .version("15")
@@ -183,7 +183,7 @@ TestpodsInfrastructure.builder()
 Production-like, uses Kubernetes operators to provision infrastructure:
 
 ```java
-TestpodsInfrastructure.builder()
+TestPodsInfrastructure.builder()
     .postgresqlViaOperator("db")
         .operator(PostgresOperator.ZALANDO)  // or CRUNCHYDATA
         .instances(1)
@@ -251,10 +251,10 @@ TestpodsInfrastructure.builder()
  */
 public class ECommercePlatform {
 
-    private final TestpodsPlatform platform;
+    private final TestPodsPlatform platform;
 
     public ECommercePlatform(ECommerceInfrastructure infrastructure) {
-        this.platform = TestpodsPlatform.builder()
+        this.platform = TestPodsPlatform.builder()
 
             // Platform Operator: cert-manager for TLS
             .operator("cert-manager")

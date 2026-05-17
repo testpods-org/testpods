@@ -557,9 +557,9 @@ classDiagram
     class BaseTestPod {
         <<abstract>>
         #name: String
-        #namespace: TestNamespace
+        #namespace: Namespace
         +withName(String)
-        +inNamespace(TestNamespace)
+        +inNamespace(Namespace)
         #self(): SELF
     }
 

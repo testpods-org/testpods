@@ -14,7 +14,7 @@ The implementation has a solid foundation but is **significantly incomplete** co
 | Category | Status |
 |----------|--------|
 | NamespaceNaming | Partially Implemented |
-| TestNamespace | Partially Implemented |
+| Namespace | Partially Implemented |
 | K8sCluster | Functional |
 | ExternalAccessStrategy | Functional with deviations |
 | TestPodsExtension | **Stub Only** |
@@ -81,9 +81,9 @@ boolean debug() default false;
 
 ## Partially Implemented Features
 
-### 4. TestNamespace Missing Key Methods (Spec 05)
+### 4. Namespace Missing Key Methods (Spec 05)
 
-**Location:** `core/src/main/java/org/testpods/core/cluster/TestNamespace.java`
+**Location:** `core/src/main/java/org/testpods/core/cluster/Namespace.java`
 
 | Spec Requirement | Actual Implementation |
 |-----------------|----------------------|
@@ -129,7 +129,7 @@ Returns `Supplier<String>` instead of direct `String`. Minor deviation but affec
 
 **Spec:**
 ```java
-HostAndPort getExternalAccess(TestNamespace namespace, String serviceName, int servicePort);
+HostAndPort getExternalAccess(Namespace namespace, String serviceName, int servicePort);
 ```
 
 **Actual:**
@@ -156,7 +156,7 @@ Hardcoded `-p minikit` profile. Should use the profile from the cluster configur
 | Test Class | Status |
 |-----------|--------|
 | `NamespaceNamingTest` | **Missing** |
-| `TestNamespaceTest` | **Missing** |
+| `NamespaceTest` | **Missing** |
 | `ExternalAccessStrategyTest` | **Missing** |
 
 **Spec 05 Test Plan Includes:**
@@ -209,7 +209,7 @@ Without a working extension, the MVP success criteria cannot be met. Implement:
 3. Namespace creation per test class
 4. `CloseableResource` pattern for cleanup
 
-### Priority 2: Complete TestNamespace Methods
+### Priority 2: Complete Namespace Methods
 
 Add:
 - `createIfNotExists()` (rename `create()` or add new method)
@@ -227,7 +227,7 @@ Create the enum and integrate with `@TestPods` annotation.
 
 Create test classes for:
 - `NamespaceNamingTest`
-- `TestNamespaceTest`
+- `NamespaceTest`
 - `TestPodsExtensionTest` (currently empty)
 
 ### Priority 5: Minor API Alignment
@@ -243,9 +243,9 @@ Create test classes for:
 | Acceptance Criteria (Spec 05) | Status |
 |------------------------------|--------|
 | `NamespaceNaming.forTestClass()` generates unique names with 5-char random suffix | Partial (returns Supplier) |
-| `TestNamespace.createIfNotExists()` is idempotent | Partial (named `create()`) |
-| `TestNamespace.delete()` waits for namespace deletion | Missing |
-| `TestNamespace.deleteManagedResources()` only deletes labeled resources | Missing |
+| `Namespace.createIfNotExists()` is idempotent | Partial (named `create()`) |
+| `Namespace.delete()` waits for namespace deletion | Missing |
+| `Namespace.deleteManagedResources()` only deletes labeled resources | Missing |
 | `MinikubeExternalAccessStrategy` returns correct NodePort access | Partial |
 | Unit tests for naming generation | Missing |
 | Unit tests for namespace operations | Missing |
@@ -265,7 +265,7 @@ Create test classes for:
 ## Files Reviewed
 
 - `core/src/main/java/org/testpods/core/cluster/NamespaceNaming.java`
-- `core/src/main/java/org/testpods/core/cluster/TestNamespace.java`
+- `core/src/main/java/org/testpods/core/cluster/Namespace.java`
 - `core/src/main/java/org/testpods/core/cluster/K8sCluster.java`
 - `core/src/main/java/org/testpods/core/cluster/ExternalAccessStrategy.java`
 - `core/src/main/java/org/testpods/core/cluster/HostAndPort.java`

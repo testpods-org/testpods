@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>org.testpods</groupId>
-  <artifactId>kafka</artifactId>
+  <artifactId>testpods-kafka</artifactId>
   <version>0.1.0-SNAPSHOT</version>
 
   <name>kafka</name>
