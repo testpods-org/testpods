@@ -17,14 +17,19 @@ import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
+import org.testpods.core.TestPodStartException;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.cluster.Namespace;
 import org.testpods.core.pods.builders.InitContainerBuilder;
 import org.testpods.core.pods.builders.SidecarBuilder;
+import org.testpods.core.service.ServiceConfig;
+import org.testpods.core.service.ServiceManager;
 import org.testpods.core.wait.WaitStrategy;
+import org.testpods.core.workload.WorkloadConfig;
+import org.testpods.core.workload.WorkloadManager;
 
 /**
- * Base implementation of {@link TestPod} providing common functionality.
+ * Base implementation of {@link Pod} providing common functionality.
  *
  * <p>This class handles:
  *
@@ -50,14 +55,16 @@ import org.testpods.core.wait.WaitStrategy;
  *
  * @param <SELF> The concrete type for fluent method chaining
  */
-public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements TestPod<SELF> {
+public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implements Pod<SELF> {
 
   // =============================================================
   // Configuration state
   // =============================================================
-
+  protected K8sCluster cluster;
   protected String name;
   protected Namespace namespace;
+  protected WorkloadManager workload;
+  protected ServiceManager serviceMgr;
   protected final Map<String, String> labels = new LinkedHashMap<>();
   protected final Map<String, String> annotations = new LinkedHashMap<>();
   protected String cpuRequest;
@@ -65,7 +72,7 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
   protected WaitStrategy waitStrategy;
 
   // Lazy initialization support - these are used when namespace is not explicitly set
-  protected K8sCluster explicitCluster;
+//  protected K8sCluster cluster;
   protected String explicitNamespaceName;
 
   // =============================================================
@@ -114,7 +121,7 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
 
   @Override
   public SELF inCluster(K8sCluster cluster) {
-    this.explicitCluster = cluster;
+    this.cluster = cluster;
     return self();
   }
 
@@ -283,58 +290,61 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
   // Protected helpers for subclasses
   // =============================================================
 
-  /**
-   * Ensure namespace is resolved before starting the pod.
-   *
-   * <p>This method implements lazy namespace initialization. It resolves the namespace using the
-   * following precedence:
-   *
-   * <ol>
-   *   <li>Explicit namespace set via {@link #inNamespace(Namespace)}
-   *   <li>Shared namespace from {@link TestPodDefaults#getSharedNamespace()}
-   *   <li>Create new namespace using explicit cluster + explicit name
-   *   <li>Create new namespace using resolved cluster + resolved name from defaults
-   * </ol>
-   *
-   * <p>This design allows JUnit extensions to configure defaults before tests run, enabling
-   * simplified TestPod creation without explicit namespace specification.
-   */
-  protected void ensureNamespace() {
-    // Already have explicit namespace
-    if (this.namespace != null) {
-      return;
-    }
-
-    // Check for shared namespace from TestPodDefaults (set by JUnit extension)
-    Namespace shared = TestPodDefaults.getSharedNamespace();
-    if (shared != null) {
-      this.namespace = shared;
-      return;
-    }
-
-    // Resolve cluster
-    K8sCluster cluster = this.explicitCluster;
-    if (cluster == null) {
-      cluster = TestPodDefaults.resolveCluster();
-    }
-
-    // Resolve namespace name
-    String nsName = this.explicitNamespaceName;
-    if (nsName == null) {
-      nsName = TestPodDefaults.resolveNamespaceName();
-    }
-
-    // Create the namespace
-    this.namespace = new Namespace(cluster, nsName);
-  }
+//  /**
+//   * Ensure namespace is resolved before starting the pod.
+//   *
+//   * <p>This method implements lazy namespace initialization. It resolves the namespace using the
+//   * following precedence:
+//   *
+//   * <ol>
+//   *   <li>Explicit namespace set via {@link #inNamespace(Namespace)}
+//   *   <li>Shared namespace from {@link TestPodDefaults#getSharedNamespace()}
+//   *   <li>Create new namespace using cluster + explicit name
+//   *   <li>Create new namespace using resolved cluster + resolved name from defaults
+//   * </ol>
+//   *
+//   * <p>This design allows JUnit extensions to configure defaults before tests run, enabling
+//   * simplified TestPod creation without explicit namespace specification.
+//   */
+//  protected void ensureNamespace() {
+//    // Already have explicit namespace
+//    if (this.namespace != null) {
+//      return;
+//    }
+//
+//    // Check for shared namespace from TestPodDefaults (set by JUnit extension)
+//    Namespace shared = TestPodDefaults.getSharedNamespace();
+//    if (shared != null) {
+//      this.namespace = shared;
+//      return;
+//    }
+//
+//    // Resolve cluster
+//    if (cluster == null) {
+//      cluster = TestPodDefaults.resolveCluster();
+//    }
+//
+//    // Resolve namespace name
+//    String nsName = this.explicitNamespaceName;
+//    if (nsName == null) {
+//      nsName = TestPodDefaults.resolveNamespaceName();
+//    }
+//
+//    // Create the namespace
+//    this.namespace = cluster.createNamespace(nsName);
+//  }
 
   /** Get the Kubernetes client from the namespace's cluster. */
   protected KubernetesClient getClient() {
-    if (namespace == null) {
-      throw new IllegalStateException(
-          "Namespace not resolved. Call ensureNamespace() in start() before using getClient().");
+    if (cluster == null) {
+      throw new ClassCastException("No cluster specified for pod " + name + " in namespace");
     }
-    return namespace.getCluster().getClient();
+    return cluster.getClient();
+  }
+
+  @Override
+  public K8sCluster getCluster() {
+    return cluster;
   }
 
   /**
@@ -456,16 +466,133 @@ public abstract class BaseTestPod<SELF extends BaseTestPod<SELF>> implements Tes
   // =============================================================
 
   @Override
-  public abstract void start();
+  public final void start() {
+    if (this instanceof PodLifecycleHooks h) {
+      h.preStart();
+    }
+    doStart();
+    if (this instanceof PodLifecycleHooks h) {
+      h.postStart();
+    }
+  }
 
   @Override
-  public abstract void stop();
+  public final void stop() {
+    if (this instanceof PodLifecycleHooks h) {
+      h.preStop();
+    }
+    doStop();
+  }
+
+  /**
+   * Implements the standard start workflow: ensure managers are bound, then create the workload
+   * and service via their strategies. Hooks are invoked around this call by {@link #start()}.
+   */
+  protected final void doStart() {
+    if (workload == null) {
+      workload = createWorkloadManager();
+    }
+    if (serviceMgr == null) {
+      serviceMgr = createServiceManager();
+    }
+
+    try {
+      var client = getClient();
+      String ns = namespace.getName();
+
+      PodSpec podSpec = buildPodSpec();
+      WorkloadConfig wlc =
+          WorkloadConfig.builder()
+              .name(name)
+              .namespace(ns)
+              .labels(buildLabels())
+              .annotations(annotations)
+              .podSpec(podSpec)
+              .client(client)
+              .build();
+      workload.create(wlc);
+
+      ServiceConfig svc =
+          ServiceConfig.builder()
+              .name(name)
+              .namespace(ns)
+              .port(getInternalPort())
+              .labels(buildLabels())
+              .selector(java.util.Map.of("app", name))
+              .client(client)
+              .build();
+      serviceMgr.create(svc);
+
+      waitForReady();
+    } catch (Exception e) {
+      cleanup();
+      throw new TestPodStartException(name, e.getMessage(), e);
+    }
+  }
+
+  /**
+   * Implements the standard stop workflow: delete service then workload via strategies.
+   * {@link PodLifecycleHooks#preStop()} is invoked before this call by {@link #stop()}.
+   */
+  protected final void doStop() {
+    if (serviceMgr != null) {
+      try {
+        serviceMgr.delete();
+      } catch (Exception ignored) {
+      }
+    }
+    if (workload != null) {
+      try {
+        workload.delete();
+      } catch (Exception ignored) {
+      }
+    }
+  }
+
+  private void cleanup() {
+    try {
+      if (serviceMgr != null) serviceMgr.delete();
+    } catch (Exception ignored) {
+    }
+    try {
+      if (workload != null) workload.delete();
+    } catch (Exception ignored) {
+    }
+  }
+
+  /**
+   * Build the complete pod spec including the main container and all pod-level customizations
+   * (init containers, sidecars, resource requests, pod customizers).
+   */
+  protected PodSpec buildPodSpec() {
+    PodSpecBuilder spec = new PodSpecBuilder().addToContainers(buildMainContainer());
+    return applyPodCustomizations(spec).build();
+  }
+
+  /** Build the main container (kind-specific, supplied by concrete pods). */
+  protected abstract io.fabric8.kubernetes.api.model.Container buildMainContainer();
+
+  /**
+   * Subclasses provide the {@link WorkloadManager} for their workload kind. Called lazily on first
+   * {@link #start()} invocation.
+   */
+  protected abstract WorkloadManager createWorkloadManager();
+
+  /**
+   * Subclasses provide the {@link ServiceManager} for their service shape. Called lazily on first
+   * {@link #start()} invocation.
+   */
+  protected abstract ServiceManager createServiceManager();
 
   @Override
-  public abstract boolean isRunning();
+  public boolean isRunning() {
+    return workload != null && workload.isRunning();
+  }
 
   @Override
-  public abstract boolean isReady();
+  public boolean isReady() {
+    return workload != null && workload.isReady();
+  }
 
   @Override
   public abstract int getInternalPort();

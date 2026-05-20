@@ -276,9 +276,8 @@ class PostgreSQLPodInitScriptTest {
 
   /** Clean up namespace and cluster resources after tests. */
   private void cleanupResources(PostgreSQLPod postgres) throws IOException {
-    if (postgres.getNamespace() != null) {
-      postgres.getNamespace().close();
-      K8sCluster cluster = postgres.getNamespace().getCluster();
+    final K8sCluster cluster = postgres.getCluster();
+    if (cluster != null) {
       if (cluster != null) {
         cluster.close();
       }

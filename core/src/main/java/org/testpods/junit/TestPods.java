@@ -7,4 +7,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @Retention(RetentionPolicy.RUNTIME)
 @ExtendWith(TestPodsExtension.class)
 @Inherited
-public @interface TestPods {}
+public @interface TestPods {
+
+
+    Class<?>[] testpodsProviders() default {};
+}

@@ -5,7 +5,7 @@ import java.util.Objects;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 
 /**
  * Waits for a specific log message pattern to appear in the pod's logs.
@@ -67,7 +67,7 @@ public class LogMessageWaitStrategy implements WaitStrategy {
   }
 
   @Override
-  public void waitUntilReady(TestPod<?> pod) {
+  public void waitUntilReady(Pod<?> pod) {
     Objects.requireNonNull(pod, "pod must not be null");
 
     long startTime = System.currentTimeMillis();

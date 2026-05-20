@@ -12,6 +12,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.StringJoiner;
 import org.testpods.core.PropertyContext;
+import org.testpods.core.pods.PodLifecycleHooks;
 import org.testpods.core.pods.StatefulSetPod;
 import org.testpods.core.wait.WaitStrategy;
 
@@ -63,7 +64,7 @@ import org.testpods.core.wait.WaitStrategy;
  *
  * @see StatefulSetPod
  */
-public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> {
+public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodLifecycleHooks {
 
   // === Constants ===
 
@@ -376,34 +377,18 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> {
   }
 
   // =============================================================
-  // Lifecycle - ConfigMap must be created before StatefulSet
+  // Lifecycle hooks
   // =============================================================
 
   @Override
-  public void start() {
-    // Resolve namespace lazily if not explicitly set
-    ensureNamespace();
-
-    // Ensure namespace exists in cluster (idempotent if already created)
-    if (!namespace.isCreated()) {
-      namespace.create();
-    }
-
-    // Create init script ConfigMap BEFORE super.start() creates the StatefulSet
-    // This ensures the ConfigMap exists when the pod spec references it
+  public void preStart() {
     if (hasInitScripts()) {
       createInitScriptConfigMap();
     }
-
-    // Now create the StatefulSet (which references the ConfigMap)
-    super.start();
   }
 
   @Override
-  public void stop() {
-    super.stop();
-
-    // Clean up the ConfigMap after stopping the StatefulSet
+  public void preStop() {
     if (hasInitScripts()) {
       deleteInitScriptConfigMap();
     }

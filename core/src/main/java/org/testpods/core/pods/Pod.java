@@ -22,7 +22,7 @@ import org.testpods.core.wait.WaitStrategy;
  *
  * @param <SELF> The concrete type for fluent method chaining
  */
-public interface TestPod<SELF extends TestPod<SELF>> {
+public interface Pod<SELF extends Pod<SELF>> {
 
   // =============================================================
   // Configuration
@@ -34,7 +34,10 @@ public interface TestPod<SELF extends TestPod<SELF>> {
    */
   SELF withName(String name);
 
-  /** Deploy this pod into the specified namespace. */
+  /** Deploy this pod into the specified namespace.
+   * Specifying a namespace is optional. If not provided, the default namespace will be used.
+   * @param namespace The namespace to deploy into.
+   * */
   SELF inNamespace(Namespace namespace);
 
   /**
@@ -43,7 +46,7 @@ public interface TestPod<SELF extends TestPod<SELF>> {
    * <p>The cluster will be resolved automatically via {@link K8sCluster#discover()} or from {@link
    * TestPodDefaults} if configured.
    *
-   * <p>The namespace will be created if it doesn't exist when {@link #start()} is called.
+   * <p>The namespace will be created if it doesn't exist when {@link #start(K8sCluster cluster)} is called.
    *
    * @param namespaceName The namespace name to use
    */
@@ -52,11 +55,11 @@ public interface TestPod<SELF extends TestPod<SELF>> {
   /**
    * Deploy this pod into the specified cluster.
    *
-   * <p>A default namespace will be created automatically when {@link #start()} is called. The
+   * <p>A default namespace will be created automatically when {@link #start(K8sCluster cluster)} is called. The
    * namespace name will be resolved from {@link TestPodDefaults} or generated as {@code
    * testpods-xxxxx}.
-   *
-   * @param cluster The cluster to deploy into
+   * Specifying a cluster is optional. If not provided, the default cluster will be used.
+   * @param cluster The cluster to deploy into.
    */
   SELF inCluster(K8sCluster cluster);
 
@@ -185,6 +188,9 @@ public interface TestPod<SELF extends TestPod<SELF>> {
 
   /** Get the namespace this pod is deployed in. */
   Namespace getNamespace();
+
+  /** Get the cluster this pod is deployed in. */
+  K8sCluster getCluster();
 
   // =============================================================
   // Connection - Internal (pod-to-pod within cluster)

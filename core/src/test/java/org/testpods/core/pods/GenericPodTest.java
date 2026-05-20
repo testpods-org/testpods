@@ -9,21 +9,21 @@ import java.io.IOException;
 import org.junit.jupiter.api.Test;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.cluster.Namespace;
-import org.testpods.core.cluster.client.MinikubeCluster;
+import org.testpods.core.cluster.MinikubeCluster;
 import org.testpods.core.wait.WaitStrategy;
 
-class GenericTestPodTest {
+class GenericPodTest {
 
   /**
    * Original verbose approach - explicit cluster and namespace. Still supported for full control.
    */
   @Test
   public void explicitClusterAndNamespace() throws IOException {
-    MinikubeCluster cluster = MinikubeCluster.create();
-    Namespace namespace = new Namespace(cluster);
+    MinikubeCluster cluster = K8sCluster.newMinikube();
+    Namespace namespace = cluster.createNamespace();
     try {
-      GenericTestPod nginx =
-          new GenericTestPod("nginx:1.25")
+      GenericPod nginx =
+          new GenericPod("nginx:1.25")
               .withPort(80)
               .withName("nginx")
               .withEnv("NGINX_HOST", "localhost")
@@ -36,7 +36,6 @@ class GenericTestPodTest {
       var nginxServiceDeleted = getServiceResource(cluster.getClient(), namespace, nginx);
       assertNull(nginxServiceDeleted.get());
     } finally {
-      namespace.close();
       cluster.close();
     }
   }
@@ -47,8 +46,8 @@ class GenericTestPodTest {
    */
   @Test
   public void simplifiedAutoDiscover() {
-    GenericTestPod nginx =
-        new GenericTestPod("nginx:1.25")
+    GenericPod nginx =
+        new GenericPod("nginx:1.25")
             .withPort(80)
             .withName("nginx")
             .waitingFor(WaitStrategy.forPort(80));
@@ -58,29 +57,26 @@ class GenericTestPodTest {
 
       assertTrue(nginx.isRunning());
       assertNotNull(nginx.getNamespace());
-      assertNotNull(nginx.getNamespace().getCluster());
+      assertNotNull(nginx.getCluster());
 
       nginx.stop();
       assertFalse(nginx.isRunning());
     } finally {
-      if (nginx.getNamespace() != null) {
-        nginx.getNamespace().close();
         try {
-          nginx.getNamespace().getCluster().close();
+          nginx.getCluster().close();
         } catch (IOException e) {
           // ignore
         }
-      }
     }
   }
 
   /** Intermediate approach - explicit cluster, auto-generated namespace. */
   @Test
   public void explicitClusterAutoNamespace() throws IOException {
-    K8sCluster cluster = K8sCluster.minikube();
+    K8sCluster cluster = K8sCluster.newMinikube();
 
-    GenericTestPod nginx =
-        new GenericTestPod("nginx:1.25")
+    GenericPod nginx =
+        new GenericPod("nginx:1.25")
             .withPort(80)
             .withName("nginx")
             .waitingFor(WaitStrategy.forPort(80))
@@ -94,9 +90,6 @@ class GenericTestPodTest {
 
       nginx.stop();
     } finally {
-      if (nginx.getNamespace() != null) {
-        nginx.getNamespace().close();
-      }
       cluster.close();
     }
   }
@@ -104,8 +97,8 @@ class GenericTestPodTest {
   /** Intermediate approach - auto-discover cluster, explicit namespace name. */
   @Test
   public void autoClusterExplicitNamespaceName() {
-    GenericTestPod nginx =
-        new GenericTestPod("nginx:1.25")
+    GenericPod nginx =
+        new GenericPod("nginx:1.25")
             .withPort(80)
             .withName("nginx")
             .waitingFor(WaitStrategy.forPort(80))
@@ -119,19 +112,16 @@ class GenericTestPodTest {
 
       nginx.stop();
     } finally {
-      if (nginx.getNamespace() != null) {
-        nginx.getNamespace().close();
         try {
-          nginx.getNamespace().getCluster().close();
+          nginx.getCluster().close();
         } catch (IOException e) {
           // ignore
         }
-      }
     }
   }
 
   private static ServiceResource<Service> getServiceResource(
-          KubernetesClient client, Namespace namespace, GenericTestPod pod) {
+          KubernetesClient client, Namespace namespace, GenericPod pod) {
     return client.services().inNamespace(namespace.getName()).withName(pod.getName());
   }
 }

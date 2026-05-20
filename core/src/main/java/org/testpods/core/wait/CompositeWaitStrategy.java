@@ -6,7 +6,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 
 /**
  * Combines multiple wait strategies that must all pass.
@@ -73,7 +73,7 @@ public class CompositeWaitStrategy implements WaitStrategy {
   }
 
   @Override
-  public void waitUntilReady(TestPod<?> pod) {
+  public void waitUntilReady(Pod<?> pod) {
     Objects.requireNonNull(pod, "pod must not be null");
 
     long startTime = System.currentTimeMillis();

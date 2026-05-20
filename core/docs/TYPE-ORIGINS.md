@@ -66,8 +66,8 @@ The Fabric8 client provides all the Kubernetes API model classes and the client 
 
 | Class | Type | Description |
 |-------|------|-------------|
-| `TestPod<SELF>` | Interface | The main contract for all test pods |
-| `BaseTestPod<SELF>` | Abstract Class | Shared implementation for all pods |
+| `Pod<SELF>` | Interface | The main contract for all test pods |
+| `BaseManagedPod<SELF>` | Abstract Class | Shared implementation for all pods |
 | `ExecResult` | Record | Result of container exec commands |
 
 ### Builder Package (`org.testpods.core.builder`)
@@ -140,7 +140,7 @@ io.fabric8.kubernetes.api.model.ContainerBuilder
 | `MongoDBPod` | Class | MongoDB test pod |
 | `KafkaPod` | Class | Kafka test pod |
 | `ServicePod` | Class | User application service pod |
-| `GenericTestPod` | Class | Generic pod for any image |
+| `GenericPod` | Class | Generic pod for any image |
 
 ---
 

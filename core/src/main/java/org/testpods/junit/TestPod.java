@@ -7,4 +7,10 @@ import java.lang.annotation.Target;
 
 @Target({ElementType.FIELD, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface TestPod {}
+public @interface TestPod {
+
+    String value() default "";
+    String podName() default "";
+}
+
+

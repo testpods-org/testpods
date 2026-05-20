@@ -2,13 +2,13 @@ package org.testpods.core.wait;
 
 import java.time.Duration;
 import java.util.Objects;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 
 /**
  * Waits for the Kubernetes readiness probe to pass.
  *
  * <p>This is the most Kubernetes-native wait strategy. It trusts the pod's configured readiness
- * probe and polls the K8s API until the pod's {@link TestPod#isReady()} returns true.
+ * probe and polls the K8s API until the pod's {@link Pod#isReady()} returns true.
  *
  * <p>The readiness probe is configured on the pod's container spec and can be:
  *
@@ -46,7 +46,7 @@ public class ReadinessProbeWaitStrategy implements WaitStrategy {
   }
 
   @Override
-  public void waitUntilReady(TestPod<?> pod) {
+  public void waitUntilReady(Pod<?> pod) {
     Objects.requireNonNull(pod, "pod must not be null");
 
     long startTime = System.currentTimeMillis();

@@ -1,12 +1,12 @@
 package org.testpods.core;
 
 import java.util.Objects;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 
 /**
  * Result of executing a command inside a container.
  *
- * <p>This is returned by {@link TestPod#exec(String...)} and contains the exit code, stdout, and
+ * <p>This is returned by {@link Pod#exec(String...)} and contains the exit code, stdout, and
  * stderr of the executed command.
  *
  * <p>Example usage:

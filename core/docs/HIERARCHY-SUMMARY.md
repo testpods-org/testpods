@@ -4,8 +4,8 @@
 
 ```
 org.testpods.core/
-├── TestPod.java                    # Interface - the contract
-├── BaseTestPod.java                # Abstract - shared implementation
+├── Pod.java                        # Interface - the contract
+├── BaseManagedPod.java                # Abstract - shared implementation
 ├── ExecResult.java                 # Record - command execution result
 │
 ├── builder/
@@ -40,19 +40,19 @@ org.testpods.core/
     ├── MongoDBPod.java             # Concrete - MongoDB
     ├── KafkaPod.java               # Concrete - Kafka
     ├── ServicePod.java             # Concrete - User application services
-    └── GenericTestPod.java         # Concrete - Any arbitrary image
+    └── GenericPod.java         # Concrete - Any arbitrary image
 ```
 
 ## Class Hierarchy
 
 ```
 <<interface>>
-TestPod<SELF>                         ← Contract only
+Pod<SELF>                             ← Contract only
     │
     │ implements
     ▼
 <<abstract>>
-BaseTestPod<SELF>                     ← Shared implementation
+BaseManagedPod<SELF>                     ← Shared implementation
     │  - name, namespace, labels, annotations
     │  - initContainerConfigurers, sidecarConfigurers
     │  - podCustomizers
@@ -76,19 +76,19 @@ StatefulSetPod<SELF>           DeploymentPod<SELF>
     │                                   │
     ├─────────┬─────────┐               ├─────────┬
     ▼         ▼         ▼               ▼         ▼
-MongoDBPod  KafkaPod  (others)     ServicePod  GenericTestPod
+MongoDBPod  KafkaPod  (others)     ServicePod  GenericPod
 ```
 
 ## Key Design Decisions
 
 ### 1. Interface vs Abstract Class
 
-- **TestPod<SELF>** is an **interface** for:
+- **Pod<SELF>** is an **interface** for:
   - Clean contract definition
   - Easy mocking in tests
   - Multiple inheritance possibility
 
-- **BaseTestPod<SELF>** is an **abstract class** for:
+- **BaseManagedPod<SELF>** is an **abstract class** for:
   - Shared state (name, namespace, labels)
   - Common method implementations
   - Template methods (applyPodCustomizations)
@@ -99,7 +99,7 @@ MongoDBPod  KafkaPod  (others)     ServicePod  GenericTestPod
   - Creates StatefulSet + headless Service
   - Supports PVC customization
   
-- **DeploymentPod** - For stateless services (ServicePod, GenericTestPod)
+- **DeploymentPod** - For stateless services (ServicePod, GenericPod)
   - Creates Deployment + ClusterIP Service
   - Simpler lifecycle management
 
@@ -151,8 +151,8 @@ Our builders are **simplified facades** that produce Fabric8 `Container` objects
 
 | # | File | Type |
 |---|------|------|
-| 1 | `TestPod.java` | Interface |
-| 2 | `BaseTestPod.java` | Abstract Class |
+| 1 | `Pod.java` | Interface |
+| 2 | `BaseManagedPod.java` | Abstract Class |
 | 3 | `ExecResult.java` | Record |
 | 4 | `InitContainerBuilder.java` | Class |
 | 5 | `SidecarBuilder.java` | Class |
@@ -173,4 +173,4 @@ Our builders are **simplified facades** that produce Fabric8 `Container` objects
 | 20 | `MongoDBPod.java` | Class |
 | 21 | `KafkaPod.java` | Class |
 | 22 | `ServicePod.java` | Class |
-| 23 | `GenericTestPod.java` | Class |
+| 23 | `GenericPod.java` | Class |

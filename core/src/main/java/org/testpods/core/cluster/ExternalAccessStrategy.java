@@ -10,7 +10,7 @@ import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 
 /**
  * Strategy for accessing pods from outside the Kubernetes cluster.
@@ -32,10 +32,10 @@ public interface ExternalAccessStrategy {
    * @param internalPort The container port to expose
    * @return Host and port for external access
    */
-  HostAndPort getExternalEndpoint(TestPod<?> pod, int internalPort);
+  HostAndPort getExternalEndpoint(Pod<?> pod, int internalPort);
 
   /** Clean up any resources (e.g., port forwards) when done. Called when the pod is stopped. */
-  default void cleanup(TestPod<?> pod) {
+  default void cleanup(Pod<?> pod) {
     // Default: no cleanup needed
   }
 
@@ -85,7 +85,7 @@ class PortForwardAccessStrategy implements ExternalAccessStrategy {
   private final Map<String, HostAndPort> cachedEndpoints = new ConcurrentHashMap<>();
 
   @Override
-  public HostAndPort getExternalEndpoint(TestPod<?> pod, int internalPort) {
+  public HostAndPort getExternalEndpoint(Pod<?> pod, int internalPort) {
     String key = pod.getNamespace().getName() + "/" + pod.getName() + ":" + internalPort;
 
     return cachedEndpoints.computeIfAbsent(
@@ -94,7 +94,7 @@ class PortForwardAccessStrategy implements ExternalAccessStrategy {
           try {
             int localPort = findAvailablePort();
 
-            KubernetesClient client = pod.getNamespace().getCluster().getClient();
+            KubernetesClient client = pod.getCluster().getClient();
 
             // Port forward to the service (more stable than pod)
             LocalPortForward portForward =
@@ -114,7 +114,7 @@ class PortForwardAccessStrategy implements ExternalAccessStrategy {
   }
 
   @Override
-  public void cleanup(TestPod<?> pod) {
+  public void cleanup(Pod<?> pod) {
     String keyPrefix = pod.getNamespace().getName() + "/" + pod.getName() + ":";
 
     activeForwards
@@ -167,8 +167,8 @@ class NodePortAccessStrategy implements ExternalAccessStrategy {
   }
 
   @Override
-  public HostAndPort getExternalEndpoint(TestPod<?> pod, int internalPort) {
-    KubernetesClient client = pod.getNamespace().getCluster().getClient();
+  public HostAndPort getExternalEndpoint(Pod<?> pod, int internalPort) {
+    KubernetesClient client = pod.getCluster().getClient();
 
     // Get the service
     Service service =
@@ -231,8 +231,8 @@ class LoadBalancerAccessStrategy implements ExternalAccessStrategy {
   private static final int MAX_WAIT_SECONDS = 120;
 
   @Override
-  public HostAndPort getExternalEndpoint(TestPod<?> pod, int internalPort) {
-    KubernetesClient client = pod.getNamespace().getCluster().getClient();
+  public HostAndPort getExternalEndpoint(Pod<?> pod, int internalPort) {
+    KubernetesClient client = pod.getCluster().getClient();
 
     long startTime = System.currentTimeMillis();
     long timeoutMillis = MAX_WAIT_SECONDS * 1000L;
@@ -294,7 +294,7 @@ class MinikubeServiceAccessStrategy implements ExternalAccessStrategy {
   private final Map<String, HostAndPort> cachedEndpoints = new ConcurrentHashMap<>();
 
   @Override
-  public HostAndPort getExternalEndpoint(TestPod<?> pod, int internalPort) {
+  public HostAndPort getExternalEndpoint(Pod<?> pod, int internalPort) {
     String key = pod.getNamespace().getName() + "/" + pod.getName() + ":" + internalPort;
 
     return cachedEndpoints.computeIfAbsent(
@@ -346,7 +346,7 @@ class MinikubeServiceAccessStrategy implements ExternalAccessStrategy {
         });
   }
 
-  private HostAndPort fallbackToNodePort(TestPod<?> pod, int internalPort) {
+  private HostAndPort fallbackToNodePort(Pod<?> pod, int internalPort) {
     try {
       // Get minikube IP
       ProcessBuilder pb = new ProcessBuilder("minikube", "ip");
@@ -365,7 +365,7 @@ class MinikubeServiceAccessStrategy implements ExternalAccessStrategy {
       }
 
       // Get NodePort from service
-      KubernetesClient client = pod.getNamespace().getCluster().getClient();
+      KubernetesClient client = pod.getCluster().getClient();
       Service service =
           client.services().inNamespace(pod.getNamespace().getName()).withName(pod.getName()).get();
 

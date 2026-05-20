@@ -16,9 +16,6 @@ import org.testpods.junit.TestPods;
 class OrderServiceApplicationTests {
 
 
-	@TestPod
-
-
 	@Test
 	void contextLoads() {
 	}

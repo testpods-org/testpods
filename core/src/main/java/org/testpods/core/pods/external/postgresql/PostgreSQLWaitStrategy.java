@@ -5,7 +5,7 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Duration;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 import org.testpods.core.wait.WaitStrategy;
 
 /**
@@ -41,7 +41,7 @@ public class PostgreSQLWaitStrategy implements WaitStrategy {
   }
 
   @Override
-  public void waitUntilReady(TestPod<?> testPod) {
+  public void waitUntilReady(Pod<?> testPod) {
     if (!(testPod instanceof PostgreSQLPod)) {
       throw new IllegalArgumentException("PostgreSQLWaitStrategy requires PostgreSQLPod");
     }

@@ -4,12 +4,12 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.Objects;
 import org.testpods.core.ExecResult;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 
 /**
  * Waits for a command to exit with code 0 when executed inside the container.
  *
- * <p>This strategy repeatedly executes a command using {@link TestPod#exec(String...)} until it
+ * <p>This strategy repeatedly executes a command using {@link Pod#exec(String...)} until it
  * returns exit code 0, or the timeout expires.
  *
  * <p>This is useful for:
@@ -72,7 +72,7 @@ public class CommandWaitStrategy implements WaitStrategy {
   }
 
   @Override
-  public void waitUntilReady(TestPod<?> pod) {
+  public void waitUntilReady(Pod<?> pod) {
     Objects.requireNonNull(pod, "pod must not be null");
 
     long startTime = System.currentTimeMillis();

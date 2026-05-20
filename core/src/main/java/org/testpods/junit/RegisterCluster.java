@@ -7,4 +7,13 @@ import java.lang.annotation.Target;
 
 @Target({ElementType.FIELD, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
-public @interface RegisterCluster {}
+public @interface RegisterCluster {
+
+    String value() default "";
+    String profile() default "";
+
+    boolean stopAfterTest() default false;
+
+    boolean deleteNamespaceAfterTest() default true;
+
+}

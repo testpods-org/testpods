@@ -8,7 +8,7 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.HashSet;
 import java.util.Set;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 
 /**
  * Waits for an HTTP endpoint to return a successful status code.
@@ -47,7 +47,7 @@ public class HttpWaitStrategy implements WaitStrategy {
   }
 
   @Override
-  public void waitUntilReady(TestPod<?> pod) {
+  public void waitUntilReady(Pod<?> pod) {
     long startTime = System.currentTimeMillis();
     long timeoutMillis = timeout.toMillis();
 

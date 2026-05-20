@@ -1,60 +1,32 @@
 package org.testpods.core.cluster;
 
-import io.fabric8.kubernetes.api.model.NamespaceBuilder;
-import java.io.Closeable;
+import io.fabric8.kubernetes.api.model.NamespaceStatus;
+import lombok.Getter;
+import lombok.experimental.Delegate;
 
 /** A Kubernetes namespace for running test pods. */
-public class Namespace implements Closeable {
+public class Namespace {
 
-  private final K8sCluster cluster;
+  @Getter
   private final String name;
-  private boolean created = false;
 
-  public Namespace(K8sCluster cluster, String name) {
-    this.cluster = cluster;
-    this.name = name;
+  @Delegate
+  private final io.fabric8.kubernetes.api.model.Namespace clusterNamespace;
+
+  public Namespace(String name, io.fabric8.kubernetes.api.model.Namespace clusterNamespace) {
+      this.name = name;
+      this.clusterNamespace = clusterNamespace;
   }
 
-  public Namespace(K8sCluster cluster) {
-    this.cluster = cluster;
-    this.name = NamespaceNaming.generate();
+  private Namespace(String name) {
+      this.name = name;
+      this.clusterNamespace = null;
   }
 
-  /** Creates the namespace in the cluster if it doesn't already exist. */
-  public void create() {
-    if (created) {
-      return;
-    }
-
-    io.fabric8.kubernetes.api.model.Namespace existing = cluster.getClient().namespaces().withName(name).get();
-    if (existing == null) {
-      io.fabric8.kubernetes.api.model.Namespace ns = new NamespaceBuilder().withNewMetadata().withName(name).endMetadata().build();
-      cluster.getClient().namespaces().resource(ns).create();
-    }
-    created = true;
-  }
-
-  /** Deletes the namespace from the cluster. */
-  @Override
-  public void close() {
-    if (created) {
-      cluster.getClient().namespaces().withName(name).delete();
-      created = false;
-    }
-  }
-
-  /** Returns the namespace name. */
-  public String getName() {
-    return name;
-  }
-
-  /** Returns true if the namespace has been created. */
-  public boolean isCreated() {
-    return created;
-  }
-
-  /** Returns the cluster this namespace belongs to. */
-  public K8sCluster getCluster() {
-    return cluster;
+  /** Returns true if the namespace has been created in the cluster. */
+  public boolean isCreatedInCluster() {
+    final NamespaceStatus status = clusterNamespace.getStatus();
+    //TODO The status on the namespace is only valid at the time which the clients returns an updated starte from the cluster.
+    return true;
   }
 }

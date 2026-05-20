@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>Tests the buildMainContainer method, focusing on VolumeMount behavior for init scripts.
  */
-class PostgreSQLPodTest {
+class PostgresSQLPodTest {
 
   // =============================================================
   // VolumeMount tests for init scripts

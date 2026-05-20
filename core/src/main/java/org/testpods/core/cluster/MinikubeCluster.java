@@ -1,5 +1,7 @@
-package org.testpods.core.cluster.client;
+package org.testpods.core.cluster;
 
+import io.fabric8.kubernetes.api.model.NamespaceBuilder;
+import io.fabric8.kubernetes.api.model.NamespaceCondition;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
@@ -7,8 +9,9 @@ import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import org.testpods.core.cluster.ExternalAccessStrategy;
-import org.testpods.core.cluster.K8sCluster;
+import java.util.*;
+
+import io.fabric8.kubernetes.client.KubernetesClientException;
 
 /** K8sCluster implementation for Minikube clusters. */
 public class MinikubeCluster implements K8sCluster, Closeable {
@@ -18,12 +21,16 @@ public class MinikubeCluster implements K8sCluster, Closeable {
   private final KubernetesClient client;
   private final ExternalAccessStrategy accessStrategy;
   private final String profile;
+  private Namespace defaultNamespace;
+  private final Map<String, Namespace> namespaces;
 
   private MinikubeCluster(String profile) {
     this.profile = profile;
-    validateMinikubeRunning(profile);
+    ensureMinikubeRunning(profile);
     this.client = createClient(profile);
     this.accessStrategy = ExternalAccessStrategy.minikubeService();
+    this.namespaces = new HashMap<>();
+    createNamespace();
   }
 
   /** Create a MinikubeCluster using the minikit profile ("minikit"). */
@@ -46,6 +53,61 @@ public class MinikubeCluster implements K8sCluster, Closeable {
     return accessStrategy;
   }
 
+  @Override
+  public Namespace getDefaultNamespace() {
+    return defaultNamespace;
+  }
+
+  @Override
+  public Namespace getNamespace(String name) {
+    if (!namespaces.containsKey(name)) {
+      //TODO handle namespace not found
+      return null;
+    }
+    return namespaces.get(name);
+  }
+
+  @Override
+  public Namespace createNamespace(String name) {
+    return createNamespaceInCluster(Optional.of(name));
+  }
+
+  @Override
+  public Namespace createNamespace() {
+    return createNamespaceInCluster(Optional.empty());
+  }
+
+  @Override
+  public K8sCluster withNamespace() {
+    createNamespaceInCluster(Optional.empty());
+    return this;
+  }
+
+  private Namespace createNamespaceInCluster(Optional<String> optionalName) {
+    String name = optionalName.orElse(NamespaceNaming.generate());
+    try {
+      var existingNamespaceInCluster = client.namespaces().withName(name).get();
+      if (existingNamespaceInCluster == null) {
+        var clusterNamespace = new NamespaceBuilder().withNewMetadata().withName(name).endMetadata().build();
+        clusterNamespace = client.namespaces().resource(clusterNamespace).create();
+
+        //TODO inspect the conditions to check if the namespace is ready.
+        String phase = clusterNamespace.getStatus().getPhase();
+        List<NamespaceCondition> namespaceConditions = clusterNamespace.getStatus().getConditions();
+
+        final Namespace namespace = new Namespace(name, clusterNamespace);
+        namespaces.put(name, namespace);
+        defaultNamespace = namespace;
+        return namespace;
+      } else {
+        throw new ClusterException("Namespace " + name + " already exists in cluster");
+      }
+    } catch (KubernetesClientException kce) {
+
+    }
+    throw new ClusterException("Unable to create namespace " + name + " in cluster");
+  }
+
   /** Returns the minikube profile name. */
   public String getProfile() {
     return profile;
@@ -58,8 +120,9 @@ public class MinikubeCluster implements K8sCluster, Closeable {
     }
   }
 
-  private void validateMinikubeRunning(String profile) {
+  private void ensureMinikubeRunning(String profile) {
     try {
+      // TODO store handle to minikube process for later use and for shutting it down if requested
       ProcessBuilder pb = new ProcessBuilder("minikube", "status", "-p", profile, "-o", "json");
       pb.redirectErrorStream(true);
 
@@ -106,6 +169,8 @@ public class MinikubeCluster implements K8sCluster, Closeable {
 
   private KubernetesClient createClient(String profile) {
     Config config = Config.autoConfigure(profile);
-    return new KubernetesClientBuilder().withConfig(config).build();
+    KubernetesClient kubernetesClient = new KubernetesClientBuilder().withConfig(config).build();
+    //TODO check if the client is ready and check connection to the cluster
+    return kubernetesClient;
   }
 }

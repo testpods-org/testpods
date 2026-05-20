@@ -191,7 +191,7 @@ public final class TestPodDefaults {
   }
 
   // =========================================================================
-  // Resolution (used by BaseTestPod)
+  // Resolution (used by BaseManagedPod)
   // =========================================================================
 
   /**
@@ -300,7 +300,7 @@ public final class TestPodDefaults {
    * Mutable context holder for thread-local state.
    *
    * <p>This class uses volatile fields to ensure visibility across threads when the context is
-   * copied to child threads via {@link InheritableThreadLocal#child‘Value(Object)}.
+   * copied to child threads via {@link InheritableThreadLocal#childValue(Object)}.
    */
   private static class Context {
     volatile Supplier<K8sCluster> clusterSupplier;

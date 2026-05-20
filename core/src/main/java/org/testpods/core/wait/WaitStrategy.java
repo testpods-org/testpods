@@ -1,7 +1,7 @@
 package org.testpods.core.wait;
 
 import java.time.Duration;
-import org.testpods.core.pods.TestPod;
+import org.testpods.core.pods.Pod;
 
 /**
  * Strategy for waiting until a pod is ready to accept traffic.
@@ -27,7 +27,7 @@ import org.testpods.core.pods.TestPod;
  *     .waitingFor(WaitStrategy.forLogMessage(".*waiting for connections.*")
  *         .withTimeout(Duration.ofMinutes(2)));
  *
- * GenericTestPod app = new GenericTestPod("myapp:latest")
+ * GenericPod app = new GenericPod("myapp:latest")
  *     .waitingFor(WaitStrategy.forHttp("/health", 8080)
  *         .withTimeout(Duration.ofSeconds(30)));
  * }</pre>
@@ -40,7 +40,7 @@ public interface WaitStrategy {
    * @param pod The pod to wait for
    * @throws IllegalStateException if the pod doesn't become ready within the timeout
    */
-  void waitUntilReady(TestPod<?> pod);
+  void waitUntilReady(Pod<?> pod);
 
   /**
    * Create a copy of this strategy with a different timeout.

@@ -34,22 +34,6 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> {
   }
 
   @Override
-  public void start() {}
-
-  @Override
-  public void stop() {}
-
-  @Override
-  public boolean isRunning() {
-    return false;
-  }
-
-  @Override
-  public boolean isReady() {
-    return false;
-  }
-
-  @Override
   public String getInternalHost() {
     return "";
   }
@@ -78,7 +62,9 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> {
   public void publishProperties(PropertyContext ctx) {}
 
   //    public KafkaPod withKraftMode(boolean kraft);  // No ZK dependency
-  //    public KafkaPod withTopics(String... topics);
+  public KafkaPod withTopics(String... topics) {
+    return this;
+  }
   //    public KafkaPod withPartitions(int partitions);
   //
   //    public String getBootstrapServers();           // External

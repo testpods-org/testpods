@@ -2,8 +2,6 @@ package org.testpods.core.cluster;
 
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.io.Closeable;
-import org.testpods.core.cluster.client.ClusterException;
-import org.testpods.core.cluster.client.MinikubeCluster;
 
 /**
  * Abstraction for a Kubernetes cluster connection.
@@ -16,6 +14,11 @@ public interface K8sCluster extends Closeable {
   KubernetesClient getClient();
 
   ExternalAccessStrategy getAccessStrategy();
+
+  Namespace getDefaultNamespace();
+  Namespace getNamespace(String name);
+  Namespace createNamespace(String name);
+  Namespace createNamespace();
 
   /**
    * Auto-discover an available Kubernetes cluster.
@@ -54,16 +57,16 @@ public interface K8sCluster extends Closeable {
   }
 
   /** Create a K8sCluster connected to a Minikube cluster using the default profile ("minikit"). */
-  static K8sCluster minikube() {
+  static MinikubeCluster newMinikube() {
     return MinikubeCluster.create();
   }
 
   /** Create a K8sCluster connected to a Minikube cluster using a specific profile. */
-  static K8sCluster minikube(String profile) {
+  static MinikubeCluster newMinikube(String profile) {
     return MinikubeCluster.withProfile(profile);
   }
 
-  static K8sCluster kind(String clusterName) {
+  static K8sCluster newKind(String clusterName) {
     // TODO: Implement Kind cluster support
     throw new UnsupportedOperationException("Kind cluster support not yet implemented");
   }
@@ -77,4 +80,7 @@ public interface K8sCluster extends Closeable {
     // TODO: Implement kubeconfig-based cluster with explicit path
     throw new UnsupportedOperationException("Kubeconfig cluster support not yet implemented");
   }
+
+
+  K8sCluster withNamespace();
 }

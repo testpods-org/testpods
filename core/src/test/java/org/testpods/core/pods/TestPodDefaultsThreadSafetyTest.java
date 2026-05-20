@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.testpods.core.cluster.ExternalAccessStrategy;
 import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.Namespace;
 
 /**
  * Thread safety tests for {@link TestPodDefaults}.
@@ -399,6 +400,31 @@ class TestPodDefaultsThreadSafetyTest {
     @Override
     public ExternalAccessStrategy getAccessStrategy() {
       throw new UnsupportedOperationException("MockCluster does not support getAccessStrategy()");
+    }
+
+    @Override
+    public Namespace getDefaultNamespace() {
+      throw new UnsupportedOperationException("MockCluster does not support getDefaultNamespace()");
+    }
+
+    @Override
+    public Namespace getNamespace(String name) {
+      throw new UnsupportedOperationException("MockCluster does not support getNamespace()");
+    }
+
+    @Override
+    public Namespace createNamespace(String name) {
+      throw new UnsupportedOperationException("MockCluster does not support createNewNamespace()");
+    }
+
+    @Override
+    public Namespace createNamespace() {
+      throw new UnsupportedOperationException("MockCluster does not support createNewNamespace()");
+    }
+
+    @Override
+    public K8sCluster withNamespace() {
+      throw new UnsupportedOperationException("MockCluster does not support withNamespace()");   
     }
 
     @Override

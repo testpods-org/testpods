@@ -6,6 +6,8 @@ TestPods is an open-source Java library designed to be "the Testcontainers equiv
 
 This document captures the API design decisions, mental models, and implementation patterns for the TestPods library.
 
+> **Implementation status (2026-05-19):** The core pod hierarchy (`Pod`, `BaseManagedPod`, `DeploymentPod`, `StatefulSetPod`, `PodLifecycleHooks`, `ContainerDefinition`, `GenericPod`, `GenericStatefulPod`, `PostgreSQLPod`, `KafkaPod`) is implemented. Features described further down — `ServiceGroup`, `ServiceGroupDefinition`, `ServicePod`, and annotation-driven orchestration (`@UseServiceGroup`, `@ServiceGroupRef`, `@PodRef`) — are design intent, not yet implemented.
+
 ---
 
 ## Core Mental Model
@@ -32,7 +34,7 @@ In real K8s usage, developers rarely create bare `Pod` manifests. They create wo
 
 **Design Decision**: The `*Pod` abstraction hides the underlying workload resource. A `MongoDBPod` internally creates a StatefulSet + Service + PVC, but the developer just sees "a MongoDB they can connect to."
 
-### What a TestPod Manages Internally
+### What a Pod Manages Internally
 
 ```
 MongoDBPod (what developer sees)
@@ -57,128 +59,131 @@ Readiness probes are especially important - the abstraction needs to "wait for r
 
 ## Core Type Hierarchy
 
-### Base TestPod Class
+### `Pod` Interface
 
 ```java
-//public interface Container<SELF extends Container<SELF>> extends LinkableContainer, ContainerState {
-interface Pod<SELF extends Pod<SELF>> {
-    
+public interface Pod<SELF extends Pod<SELF>> {
+
     // Fluent configuration
-    public SELF withName(String name);
-    public SELF inNamespace(Namespace namespace);
-    public SELF withLabels(Map<String, String> labels);
-    public SELF withAnnotations(Map<String, String> annotations);
-    
-    // Resource constraints
-    public SELF withResources(ResourceRequirements resources);
-    public SELF withResources(String cpuRequest, String memoryRequest);
-    
+    SELF withName(String name);
+    SELF inNamespace(Namespace namespace);
+    SELF withLabels(Map<String, String> labels);
+    SELF withAnnotations(Map<String, String> annotations);
+
     // Wait strategies (K8s-native)
-    public SELF waitingFor(WaitStrategy strategy);
-    
+    SELF waitingFor(WaitStrategy strategy);
+
     // Lifecycle
-    public void start();
-    public void stop();
-    public boolean isRunning();
-    public boolean isReady();
-    
+    void start();
+    void stop();
+    boolean isRunning();
+    boolean isReady();
+
     // Observability
-    public String getLogs();
-    public ExecResult exec(String... command);
-    
-    // Connection - dual model (critical abstraction)
-    public String getInternalHost();     // DNS within cluster (for pod-to-pod)
-    public int getInternalPort();        // Original port
-    public String getExternalHost();     // For test code running outside cluster
-    public int getExternalPort();        // Mapped port
-    
+    String getLogs();
+    ExecResult exec(String... command);
+
+    // Connection — dual model (critical abstraction)
+    String getInternalHost();   // DNS within cluster (pod-to-pod)
+    int    getInternalPort();   // Original port
+    String getExternalHost();   // For test code running outside cluster
+    int    getExternalPort();   // Mapped port
+
     // Property publishing (for dependency injection)
-    protected abstract void publishProperties(PropertyContext ctx);
+    void publishProperties(PropertyContext ctx);
 }
+```
+
+### Class hierarchy (implemented)
+
+```
+<<interface>>
+Pod<SELF>
+    │
+    ▼
+<<abstract>>
+BaseManagedPod<SELF>           — lifecycle algorithm (start/stop/isRunning/isReady),
+    │                            delegates to WorkloadManager + ServiceManager;
+    │                            invokes PodLifecycleHooks if subclass implements it
+    │
+    ├──────────────────────────────┐
+    ▼                              ▼
+<<abstract>>                  <<abstract>>
+DeploymentPod<SELF>           StatefulSetPod<SELF>
+  — binds DeploymentManager     — binds StatefulSetManager
+    + ClusterIPServiceManager     + HeadlessServiceManager
+    │                              │
+    ▼                              ├──────────┬─────────┐
+GenericPod                         ▼          ▼         ▼
+  composes ContainerDefinition  GenericStatefulPod  PostgreSQLPod  KafkaPod
+
+<<interface>>  PodLifecycleHooks   (optional opt-in)
+  default void preStart() {}
+  default void postStart() {}
+  default void preStop()  {}
+
+ContainerDefinition                (composable, not in inheritance chain)
+  — image, ports, env, command, args, readiness probe
+  — used by GenericPod and GenericStatefulPod
 ```
 
 ### Infrastructure-Specific Pods
 
 ```java
-public class MongoDBPod extends TestPod<MongoDBPod> {
-    
-    public MongoDBPod();                    // Sensible default image
-    public MongoDBPod(String image);
-    
-    // MongoDB-specific fluent API
-    public MongoDBPod withVersion(String version);
-    public MongoDBPod withReplicaSet(String name);
-    public MongoDBPod withCredentials(String username, String password);
-    public MongoDBPod withDatabase(String database);
-    public MongoDBPod withPersistence(boolean enabled);
-    public MongoDBPod withPersistence(PersistentVolumeClaimSpec pvcSpec);
-    
-    // Connection helpers (type-safe)
-    public String getConnectionString();           // External, for test code
-    public String getInternalConnectionString();   // For services in cluster
-    public MongoClient createClient();             // Convenience factory
-}
+// Extends StatefulSetPod; implements PodLifecycleHooks for init-script ConfigMap lifecycle
+public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodLifecycleHooks { ... }
 
-public class KafkaPod extends TestPod<KafkaPod> {
-    
-    public KafkaPod withKraftMode(boolean kraft);  // No ZK dependency
-    public KafkaPod withTopics(String... topics);
-    public KafkaPod withPartitions(int partitions);
-    
-    public String getBootstrapServers();           // External
-    public String getInternalBootstrapServers();   // Internal
-}
+// Extends StatefulSetPod (stub — domain methods not yet implemented)
+public class KafkaPod extends StatefulSetPod<KafkaPod> { ... }
 ```
 
-### GenericPod for Arbitrary Images
+### GenericPod / GenericStatefulPod for Arbitrary Images
 
 ```java
-public class GenericPod extends TestPod<GenericPod> {
-    
+// Deployment-backed generic pod; composes ContainerDefinition
+public class GenericPod extends DeploymentPod<GenericPod> {
     public GenericPod(String image);
-    
     public GenericPod withPort(int port);
-    public GenericPod withEnv(String name, String value);
-    public GenericPod withVolume(String mountPath, ConfigMap configMap);
+    public GenericPod withPrimaryPort(int port);
+    public GenericPod withEnv(String key, String value);
+    public GenericPod withEnv(Map<String, String> env);
     public GenericPod withCommand(String... command);
+    public GenericPod withArgs(String... args);
+    public GenericPod withHttpReadinessProbe(String path, int port);
+}
+
+// StatefulSet-backed generic pod; same container API + PVC customization
+public class GenericStatefulPod extends StatefulSetPod<GenericStatefulPod> {
+    // Same container methods as GenericPod, plus:
+    public GenericStatefulPod withPvcCustomizer(UnaryOperator<PersistentVolumeClaimBuilder> c);
 }
 ```
 
-### ServicePod for Application Containers
-
-For deploying application services (not infrastructure):
+### ServicePod for Application Containers (design intent — not yet implemented)
 
 ```java
-public class ServicePod extends TestPod<ServicePod> {
-    
+public class ServicePod extends DeploymentPod<ServicePod> {
+
     public ServicePod(String image);
-    
+
     // Configuration injection via environment variables
     public ServicePod withEnv(String name, String value);
     public ServicePod withEnv(String name, Supplier<String> valueSupplier);
     public ServicePod withEnvFromProperty(String envName, String propertyKey);
-    public ServicePod withEnvFromPod(TestPod<?> pod, String envName, 
-                                      Function<TestPod<?>, String> valueExtractor);
-    
-    // Configuration via ConfigMap (file-based config)
-    public ServicePod withConfigFile(String mountPath, String propertyKey);
-    public ServicePod withConfigFile(String mountPath, Map<String, String> content);
-    
+    public ServicePod withEnvFromPod(Pod<?> pod, String envName,
+                                     Function<Pod<?>, String> valueExtractor);
+
     // Spring Boot specific helpers
     public ServicePod withSpringProfile(String... profiles);
     public ServicePod withSpringProperty(String key, String propertyContextKey);
-    
-    // Service exposure
-    public ServicePod withPort(int port);
-    public ServicePod withPort(String name, int port);
-    
+
     // Health probes
     public ServicePod withReadinessProbe(String path, int port);
     public ServicePod withLivenessProbe(String path, int port);
-    
+
     // Explicit pod dependency
-    public ServicePod dependsOn(TestPod<?>... pods);
-    
+    public ServicePod dependsOn(Pod<?>... pods);
+
     // External URL for test code
     public String getExternalUrl();
 }
@@ -337,10 +342,10 @@ public class PropertyContext {
 ### Pods Publish Properties Automatically
 
 ```java
-public class KafkaPod extends TestPod<KafkaPod> {
-    
+public class KafkaPod extends StatefulSetPod<KafkaPod> {
+
     @Override
-    protected void publishProperties(PropertyContext ctx) {
+    public void publishProperties(PropertyContext ctx) {
         String prefix = getName();  // e.g., "kafka" or custom name
         
         // Internal - for other pods in cluster
@@ -378,14 +383,14 @@ public class ServiceGroup {
     
     private final String name;
     private final List<ServiceGroup> dependencies = new ArrayList<>();
-    private final List<TestPod<?>> pods = new ArrayList<>();
+    private final List<Pod<?>> pods = new ArrayList<>();
     private final PropertyContext propertyContext;
     
     public static ServiceGroup named(String name);
     
     // Add pods
-    public ServiceGroup withPod(TestPod<?> pod);
-    public ServiceGroup withPod(TestPod<?> pod, Consumer<TestPod<?>> customizer);
+    public ServiceGroup withPod(Pod<?> pod);
+    public ServiceGroup withPod(Pod<?> pod, Consumer<Pod<?>> customizer);
     
     // Dependencies - this group starts AFTER dependency groups are ready
     public ServiceGroup dependsOn(ServiceGroup... groups);
@@ -399,8 +404,8 @@ public class ServiceGroup {
     public boolean isReady(); // All pods ready
     
     // Access
-    public <T extends TestPod<T>> T getPod(Class<T> type);
-    public <T extends TestPod<T>> T getPod(String name, Class<T> type);
+    public <T extends Pod<T>> T getPod(Class<T> type);
+    public <T extends Pod<T>> T getPod(String name, Class<T> type);
     public PropertyContext getPropertyContext();
     
     // Failure handling
@@ -784,7 +789,7 @@ class OrderSystemIT {
 ```java
 public interface WaitStrategy {
     
-    void waitUntilReady(TestPod<?> pod);
+    void waitUntilReady(Pod<?> pod);
     
     // Factory methods
     static WaitStrategy forReadinessProbe();           // Trust K8s probe
@@ -812,7 +817,7 @@ Different clusters need different approaches to reach pods from test code:
 ```java
 public interface ExternalAccessStrategy {
     
-    HostAndPort getExternalEndpoint(TestPod<?> pod, int internalPort);
+    HostAndPort getExternalEndpoint(Pod<?> pod, int internalPort);
     
     // Implementations
     static ExternalAccessStrategy portForward();      // Works everywhere
