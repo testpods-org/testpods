@@ -289,51 +289,7 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
   // =============================================================
   // Protected helpers for subclasses
   // =============================================================
-
-//  /**
-//   * Ensure namespace is resolved before starting the pod.
-//   *
-//   * <p>This method implements lazy namespace initialization. It resolves the namespace using the
-//   * following precedence:
-//   *
-//   * <ol>
-//   *   <li>Explicit namespace set via {@link #inNamespace(Namespace)}
-//   *   <li>Shared namespace from {@link TestPodDefaults#getSharedNamespace()}
-//   *   <li>Create new namespace using cluster + explicit name
-//   *   <li>Create new namespace using resolved cluster + resolved name from defaults
-//   * </ol>
-//   *
-//   * <p>This design allows JUnit extensions to configure defaults before tests run, enabling
-//   * simplified TestPod creation without explicit namespace specification.
-//   */
-//  protected void ensureNamespace() {
-//    // Already have explicit namespace
-//    if (this.namespace != null) {
-//      return;
-//    }
-//
-//    // Check for shared namespace from TestPodDefaults (set by JUnit extension)
-//    Namespace shared = TestPodDefaults.getSharedNamespace();
-//    if (shared != null) {
-//      this.namespace = shared;
-//      return;
-//    }
-//
-//    // Resolve cluster
-//    if (cluster == null) {
-//      cluster = TestPodDefaults.resolveCluster();
-//    }
-//
-//    // Resolve namespace name
-//    String nsName = this.explicitNamespaceName;
-//    if (nsName == null) {
-//      nsName = TestPodDefaults.resolveNamespaceName();
-//    }
-//
-//    // Create the namespace
-//    this.namespace = cluster.createNamespace(nsName);
-//  }
-
+  
   /** Get the Kubernetes client from the namespace's cluster. */
   protected KubernetesClient getClient() {
     if (cluster == null) {
