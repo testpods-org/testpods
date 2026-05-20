@@ -4,23 +4,15 @@
 
 ```
 org.testpods.core/
-├── Pod.java                        # Interface - the contract
-├── BaseManagedPod.java                # Abstract - shared implementation
 ├── ExecResult.java                 # Record - command execution result
-│
-├── builder/
-│   ├── InitContainerBuilder.java   # Mid-level API for init containers
-│   └── SidecarBuilder.java         # Mid-level API for sidecars
 │
 ├── cluster/
 │   ├── K8sCluster.java             # Interface + implementations (Minikube, Kind, etc.)
 │   └── ExternalAccessStrategy.java # Interface + implementations (PortForward, NodePort, etc.)
+│   └── Namespace.java              # Kubernetes namespace wrapper
 │
 ├── config/
 │   └── PropertyContext.java        # Shared property registry for pod-to-pod config
-│
-├── namespace/
-│   └── Namespace.java          # Kubernetes namespace wrapper
 │
 ├── wait/
 │   ├── WaitStrategy.java           # Interface with factory methods
@@ -32,10 +24,16 @@ org.testpods.core/
 │   └── DeploymentPod.java          # Abstract - for Deployment-backed pods
 │
 └── pod/
-    ├── MongoDBPod.java             # Concrete - MongoDB
-    ├── KafkaPod.java               # Concrete - Kafka
+    ├── Pod.java                    # Interface - the contract
+    ├── BaseManagedPod.java         # Abstract - shared implementation
     ├── ServicePod.java             # Concrete - User application services
-    └── GenericPod.java         # Concrete - Any arbitrary image
+    ├── GenericPod.java             # Concrete - Any arbitrary image
+    │── external/                   # External implementations
+    │   ├── MongoDBPod.java         # Concrete - MongoDB
+    │   └── KafkaPod.java           # Concrete - Kafka        
+    └── builder/
+        ├── InitContainerBuilder.java   # Mid-level API for init containers
+        └── SidecarBuilder.java         # Mid-level API for sidecars
 ```
 
 ## Class Hierarchy
@@ -69,9 +67,9 @@ StatefulSetPod<SELF>           DeploymentPod<SELF>
     │  # buildService()                 │  # buildService()
     │  # buildMainContainer() [abstract]│  # buildMainContainer() [abstract]
     │                                   │
-    ├─────────┬─────────┐               ├─────────┬
-    ▼         ▼         ▼               ▼         ▼
-MongoDBPod  KafkaPod  (others)     ServicePod  GenericPod
+    ├─────────┬                         ├─────────┬
+    ▼         ▼                         ▼         ▼
+MongoDBPod  GenericStatefulPod     ServicePod  GenericPod
 ```
 
 ## Key Design Decisions
