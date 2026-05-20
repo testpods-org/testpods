@@ -15,6 +15,7 @@ import org.testpods.core.pods.builders.InitContainerBuilder;
 import org.testpods.core.pods.builders.SidecarBuilder;
 import org.testpods.core.provisioning.Registry;
 import org.testpods.core.wait.WaitStrategy;
+import org.testpods.junit.RegisterCluster;
 
 import java.lang.reflect.Field;
 import java.time.Duration;
@@ -92,6 +93,14 @@ class TestPodsExtensionAssignmentTest {
         Field f = cls.getDeclaredField(name);
         f.setAccessible(true);
         return f;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, org.testpods.core.provisioning.FieldInitialization> getInitializations(Registry registry)
+            throws Exception {
+        java.lang.reflect.Field f = Registry.class.getDeclaredField("testPodInitializationsByName");
+        f.setAccessible(true);
+        return (Map<String, org.testpods.core.provisioning.FieldInitialization>) f.get(registry);
     }
 
     @Nested
@@ -317,6 +326,46 @@ class TestPodsExtensionAssignmentTest {
             registry.addPod("other-name", new StubPod("other-name"));
             extension.assignPodsToNonStaticFields(podTarget, podTarget.getClass(), registry);
             assertThat(podTarget.myPod).isNull();
+        }
+    }
+
+    @Nested
+    class PopulateRegistryNonStaticTests {
+
+        @TestPods
+        static class TestClassWithNonStaticPod {
+            @RegisterCluster
+            static K8sCluster cluster = STUB_CLUSTER;
+
+            @TestPod
+            StubPod kafkaPod = new StubPod("kafkaPod");
+        }
+
+        static class ProviderWithNonStaticPod {
+            @TestPod
+            StubPod providerPod = new StubPod("providerPod");
+        }
+
+        @TestPods(testpodsProviders = {ProviderWithNonStaticPod.class})
+        static class TestClassUsingProvider {
+            @RegisterCluster
+            static K8sCluster cluster = STUB_CLUSTER;
+        }
+
+        @Test
+        void nonStaticInitializedPodInTestClass_registeredViaProbeInstance() throws Exception {
+            extension.testPodsAnnotation = TestClassWithNonStaticPod.class.getAnnotation(TestPods.class);
+            extension.populateAndValidateRegistry(TestClassWithNonStaticPod.class);
+            var inits = getInitializations(extension.registry);
+            assertThat(inits.values()).anyMatch(fi -> fi.podName().equals("kafkaPod"));
+        }
+
+        @Test
+        void nonStaticInitializedPodInProvider_registeredWhenProviderScanned() throws Exception {
+            extension.testPodsAnnotation = TestClassUsingProvider.class.getAnnotation(TestPods.class);
+            extension.populateAndValidateRegistry(TestClassUsingProvider.class);
+            var inits = getInitializations(extension.registry);
+            assertThat(inits.values()).anyMatch(fi -> fi.podName().equals("providerPod"));
         }
     }
 }

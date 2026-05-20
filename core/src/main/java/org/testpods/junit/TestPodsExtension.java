@@ -220,25 +220,36 @@ public class TestPodsExtension
         }
     }
 
-    private void populateAndValidateRegistry(Class<?> testClass) {
-        //Scan for cluster registration and test pod declarations inside the test class itself
-        K8sCluster cluster =  ReflectionHelper.scanClassForClusterRegistration(testClass);
+    void populateAndValidateRegistry(Class<?> testClass) {
+        // Static fields in test class (existing behaviour)
+        K8sCluster cluster = ReflectionHelper.scanClassForClusterRegistration(testClass);
         var testPodDeclarations = ReflectionHelper.scanTestClassForTestPodDeclarationsOnly(testClass);
         registry.addTestPodDeclarations(testPodDeclarations);
-        var testPodInitializations = ReflectionHelper.scanClassForTestPodInitializationsOnly(testClass);
-        registry.addTestPodInitializations(testPodInitializations);
+        var staticInitializations = ReflectionHelper.scanClassForTestPodInitializationsOnly(testClass);
+        registry.addTestPodInitializations(staticInitializations);
 
-        // Scan for cluster registration and test pod declarations inside the test pods provider classes which are specified in the @Testpods annotation
+        // Non-static fields in test class via probe instance (new behaviour)
+        Object probe = ReflectionHelper.tryInstantiate(testClass);
+        if (probe != null) {
+            var nonStaticInitializations = ReflectionHelper.scanClassForTestPodInitializationsOnly(testClass, probe);
+            registry.addTestPodInitializations(nonStaticInitializations);
+            if (cluster == null) {
+                cluster = ReflectionHelper.scanClassForClusterRegistration(testClass, probe);
+            }
+        }
+
+        // Provider classes — static and non-static (new behaviour for non-static)
         final Class<?>[] testpodsProviders = testPodsAnnotation.testpodsProviders();
         Set<K8sCluster> providedClusters = new HashSet<>();
         if (testpodsProviders != null && testpodsProviders.length > 0) {
-            var providedTestPodInitializations = ReflectionHelper.scanTestPodsProvidersForTestPodInitializers(testpodsProviders);
-            registry.addTestPodInitializations(providedTestPodInitializations); // priority to test class initializers
-            final K8sCluster providedCluster = ReflectionHelper.scanClassForClusterRegistration(testpodsProviders);
-            providedClusters.add(providedCluster);
+            var providedInitializations =
+                    ReflectionHelper.scanTestPodsProvidersForAllTestPodInitializers(testpodsProviders);
+            registry.addTestPodInitializations(providedInitializations);
+            K8sCluster providedCluster =
+                    ReflectionHelper.scanTestPodsProvidersForClusterRegistration(testpodsProviders);
+            if (providedCluster != null) providedClusters.add(providedCluster);
         }
 
-        // If no cluster is found in the test class, use the first provided cluster from the provider classes
         if (cluster == null && !providedClusters.isEmpty()) {
             cluster = providedClusters.stream().findFirst().orElse(null);
         }
