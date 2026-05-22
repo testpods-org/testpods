@@ -12,9 +12,7 @@ import org.testpods.core.provisioning.Registry;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * JUnit 5 extension for TestPods lifecycle management.
@@ -26,7 +24,7 @@ import java.util.Set;
  * <h2>Usage</h2>
  *
  * <pre>{@code
- * @ExtendWith(TestPodsExtension.class)
+ * @TestPods
  * class MyIntegrationTest {
  *     // ...
  * }
@@ -39,7 +37,7 @@ public class TestPodsExtension
         BeforeAllCallback,
         AfterEachCallback,
         AfterAllCallback,
-        ExecutionCondition {
+        TestInstancePostProcessor {
 
     TestPods testPodsAnnotation;
     Registry registry = new Registry();
@@ -47,6 +45,7 @@ public class TestPodsExtension
 
     @Override
     public void beforeAll(@NonNull ExtensionContext extensionContext) throws Exception {
+        //TODO look into the enclosing test classes which may also have relevant annotations.
         Class<?> testClass = extensionContext.getRequiredTestClass();
         testPodsAnnotation = testClass.getAnnotation(TestPods.class);
         assert testPodsAnnotation != null : "TestPods annotation is required on the test class";
@@ -64,8 +63,10 @@ public class TestPodsExtension
         // await readiness
 
         // assign the initialized test pods to the test class fields
-        assignClusterToTestClassField(testClass, registry.getCluster());
+        assignClusterToTestClassStaticField(testClass, registry.getCluster());
         assignInitializedPodsToTestClassFields(testClass, registry);
+        extensionContext.getTestInstance()
+                .ifPresent(testInstance -> injectIntoTestInstance(testInstance, testClass));
 
     }
 
@@ -154,7 +155,7 @@ public class TestPodsExtension
      *
      * @param testClass the test class to inject the cluster into a field of the type K8sCluster
      */
-    void assignClusterToTestClassField(Class<?> testClass, K8sCluster cluster) {
+    void assignClusterToTestClassStaticField(Class<?> testClass, K8sCluster cluster) {
         for (Field field : testClass.getDeclaredFields()) {
             if (!Modifier.isStatic(field.getModifiers())) continue;
             if (!K8sCluster.class.isAssignableFrom(field.getType())) continue;
@@ -221,37 +222,33 @@ public class TestPodsExtension
     }
 
     void populateAndValidateRegistry(Class<?> testClass) {
-        // Static fields in test class (existing behaviour)
+        // Static fields in test class
         K8sCluster cluster = ReflectionHelper.scanClassForClusterRegistration(testClass);
         var testPodDeclarations = ReflectionHelper.scanTestClassForTestPodDeclarationsOnly(testClass);
         registry.addTestPodDeclarations(testPodDeclarations);
         var staticInitializations = ReflectionHelper.scanClassForTestPodInitializationsOnly(testClass);
         registry.addTestPodInitializations(staticInitializations);
 
-        // Non-static fields in test class via probe instance (new behaviour)
-        Object probe = ReflectionHelper.tryInstantiate(testClass);
-        if (probe != null) {
-            var nonStaticInitializations = ReflectionHelper.scanClassForTestPodInitializationsOnly(testClass, probe);
-            registry.addTestPodInitializations(nonStaticInitializations);
-            if (cluster == null) {
-                cluster = ReflectionHelper.scanClassForClusterRegistration(testClass, probe);
-            }
-        }
-
         // Provider classes — static and non-static (new behaviour for non-static)
         final Class<?>[] testpodsProviders = testPodsAnnotation.testpodsProviders();
-        Set<K8sCluster> providedClusters = new HashSet<>();
-        if (testpodsProviders != null && testpodsProviders.length > 0) {
+        if (testpodsProviders.length > 0) {
+            // Instantiate each provider exactly once and share the instances across both scans
+            // to avoid invoking provider constructors twice.
+            Map<Class<?>, Object> providerInstances = new java.util.HashMap<>();
+            for (Class<?> provider : testpodsProviders) {
+                Object instance = ReflectionHelper.tryInstantiate(provider);
+                if (instance != null) {
+                    providerInstances.put(provider, instance);
+                }
+            }
             var providedInitializations =
-                    ReflectionHelper.scanTestPodsProvidersForAllTestPodInitializers(testpodsProviders);
+                    ReflectionHelper.scanTestPodsProvidersForAllTestPodInitializers(
+                            testpodsProviders, providerInstances);
             registry.addTestPodInitializations(providedInitializations);
-            K8sCluster providedCluster =
-                    ReflectionHelper.scanTestPodsProvidersForClusterRegistration(testpodsProviders);
-            if (providedCluster != null) providedClusters.add(providedCluster);
-        }
-
-        if (cluster == null && !providedClusters.isEmpty()) {
-            cluster = providedClusters.stream().findFirst().orElse(null);
+            if (cluster == null) {
+                cluster = ReflectionHelper.scanTestPodsProvidersForClusterRegistration(
+                        testpodsProviders, providerInstances);
+            }
         }
         assert cluster != null : "A K8Cluster is required for TestPods to provision resources.";
         registry.setCluster(cluster);
@@ -259,14 +256,20 @@ public class TestPodsExtension
     }
 
     @Override
-    public void beforeEach(ExtensionContext extensionContext) throws Exception {
-        Object testInstance = extensionContext.getRequiredTestInstance();
-        Class<?> testClass = extensionContext.getRequiredTestClass();
+    public void postProcessTestInstance(Object testInstance, ExtensionContext extensionContext) throws Exception {
+        injectIntoTestInstance(testInstance, extensionContext.getRequiredTestClass());
+    }
+
+    private void injectIntoTestInstance(Object testInstance, Class<?> testClass) {
         K8sCluster cluster = registry.getCluster();
         if (cluster != null) {
             assignClusterToNonStaticFields(testInstance, testClass, cluster);
         }
         assignPodsToNonStaticFields(testInstance, testClass, registry);
+    }
+
+    @Override
+    public void beforeEach(ExtensionContext extensionContext) throws Exception {
     }
 
 
@@ -279,10 +282,5 @@ public class TestPodsExtension
         registry.tearDown();
         // Clear thread-local state to prevent memory leaks in thread pool executors
         TestPodDefaults.clear();
-    }
-
-    @Override
-    public ConditionEvaluationResult evaluateExecutionCondition(ExtensionContext extensionContext) {
-        return null;
     }
 }

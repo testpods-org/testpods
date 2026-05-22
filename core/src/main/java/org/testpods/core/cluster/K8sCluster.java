@@ -20,6 +20,12 @@ public interface K8sCluster extends Closeable {
   Namespace createNamespace(String name);
   Namespace createNamespace();
 
+  /** Attach to an existing namespace already present in the cluster. */
+  Namespace attachNamespace(String name);
+
+  /** Delete a namespace previously created via createNamespace. Refuses to delete external namespaces. */
+  void deleteNamespace(String name);
+
   /**
    * Auto-discover an available Kubernetes cluster.
    *

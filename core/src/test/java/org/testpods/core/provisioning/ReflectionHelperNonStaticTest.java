@@ -17,6 +17,8 @@ class ReflectionHelperNonStaticTest {
         @Override public org.testpods.core.cluster.Namespace getNamespace(String n) { return null; }
         @Override public org.testpods.core.cluster.Namespace createNamespace(String n) { return null; }
         @Override public org.testpods.core.cluster.Namespace createNamespace() { return null; }
+        @Override public org.testpods.core.cluster.Namespace attachNamespace(String n) { return null; }
+        @Override public void deleteNamespace(String n) {}
         @Override public K8sCluster withNamespace() { return this; }
         @Override public void close() {}
     }
@@ -190,6 +192,69 @@ class ReflectionHelperNonStaticTest {
         void classWithoutNoArgConstructor_returnsNull() {
             Object instance = ReflectionHelper.tryInstantiate(ProviderWithoutNoArgConstructor.class);
             assertThat(instance).isNull();
+        }
+    }
+
+    /**
+     * Provider whose no-arg constructor increments a static counter, so tests can verify
+     * how many times the constructor is invoked during a single scanning pass.
+     */
+    static class CountingProvider {
+        static int instantiations = 0;
+
+        CountingProvider() {
+            instantiations++;
+        }
+
+        @TestPod
+        StubPod countedPod = new StubPod("countedPod");
+    }
+
+    @Nested
+    class ProviderInstantiationCount {
+
+        @org.junit.jupiter.api.BeforeEach
+        void resetCounter() {
+            CountingProvider.instantiations = 0;
+        }
+
+        @Test
+        void scanTestPodsProviderForTestPodInitializations_doesNotInstantiateProvider() {
+            // The package-private helper expects callers to supply the instance themselves;
+            // it must not invoke the provider's no-arg constructor.
+            Object instance = ReflectionHelper.tryInstantiate(CountingProvider.class);
+            int afterInstantiate = CountingProvider.instantiations;
+
+            ReflectionHelper.scanTestPodsProviderForTestPodInitializations(CountingProvider.class, instance);
+
+            assertThat(CountingProvider.instantiations).isEqualTo(afterInstantiate);
+        }
+
+        @Test
+        void scanTestPodsProvidersForAllTestPodInitializers_withInstancesMap_doesNotInstantiate() {
+            // When the caller passes pre-created instances, no additional constructor calls
+            // should occur, regardless of how many scanning methods consume the map.
+            Object instance = ReflectionHelper.tryInstantiate(CountingProvider.class);
+            int afterInstantiate = CountingProvider.instantiations;
+            java.util.Map<Class<?>, Object> instances = new java.util.HashMap<>();
+            instances.put(CountingProvider.class, instance);
+
+            ReflectionHelper.scanTestPodsProvidersForAllTestPodInitializers(
+                    new Class<?>[] { CountingProvider.class }, instances);
+            ReflectionHelper.scanTestPodsProvidersForClusterRegistration(
+                    new Class<?>[] { CountingProvider.class }, instances);
+
+            assertThat(CountingProvider.instantiations).isEqualTo(afterInstantiate);
+        }
+
+        @Test
+        void singleArgOverload_instantiatesProviderExactlyOnce() {
+            // The single-argument overload must internally instantiate each provider only once,
+            // even though both static and non-static scans run against it.
+            ReflectionHelper.scanTestPodsProvidersForAllTestPodInitializers(
+                    new Class<?>[] { CountingProvider.class });
+
+            assertThat(CountingProvider.instantiations).isEqualTo(1);
         }
     }
 }

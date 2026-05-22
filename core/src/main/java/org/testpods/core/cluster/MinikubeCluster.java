@@ -1,46 +1,129 @@
 package org.testpods.core.cluster;
 
 import io.fabric8.kubernetes.api.model.NamespaceBuilder;
-import io.fabric8.kubernetes.api.model.NamespaceCondition;
 import io.fabric8.kubernetes.client.Config;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.KubernetesClientBuilder;
-import java.io.BufferedReader;
-import java.io.Closeable;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.*;
-
 import io.fabric8.kubernetes.client.KubernetesClientException;
+import java.io.Closeable;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import lombok.extern.slf4j.Slf4j;
 
-/** K8sCluster implementation for Minikube clusters. */
+/**
+ * K8sCluster implementation backed by a local {@code minikit} / {@code minikube} profile.
+ *
+ * <p>Ownership of the underlying profile is decided at construction time: if the profile was
+ * already {@link ProfileStatus#RUNNING} we attach to it and never stop/destroy it on
+ * {@link #close()}; if we had to start it, {@link #close()} applies the configured
+ * {@link ProfileLifecyclePolicy}.
+ */
+@Slf4j
 public class MinikubeCluster implements K8sCluster, Closeable {
 
-  private static final String DEFAULT_PROFILE = "minikit";
+  /** Default minikube profile name used by {@link #create()} and {@link #builder()}. */
+  static final String DEFAULT_PROFILE_NAME = "testpods";
 
+  /** Maximum time we wait for an in-progress {@link ProfileStatus#STARTING} profile to settle. */
+  private static final Duration STARTING_WAIT_TIMEOUT = Duration.ofMinutes(3);
+
+  /** Poll interval while waiting for a starting profile to settle. */
+  private static final Duration STARTING_WAIT_INTERVAL = Duration.ofSeconds(2);
+
+  /**
+   * Timeout passed to {@link MinikitCli#up(String, Duration)} when this cluster starts the profile.
+   */
+  private static final Duration UP_TIMEOUT = Duration.ofMinutes(3);
+
+  /**
+   * Per-profile mutex serialising concurrent {@code MinikubeCluster} construction within this JVM.
+   * The real {@code minikit up} command rejects concurrent invocations on the same workspace, so
+   * two threads racing on {@link #create()} would otherwise both try to start the profile and one
+   * would fail. Holding this lock around the up/status decision lets the second thread observe the
+   * now-running profile and attach without starting it.
+   */
+  private static final Map<String, Object> PROFILE_STARTUP_LOCKS = new ConcurrentHashMap<>();
+
+  private final String profileName;
+  private final MinikitCli cli;
+  private final boolean ownsProfile;
+  private final ProfileLifecyclePolicy policy;
   private final KubernetesClient client;
-  private final ExternalAccessStrategy accessStrategy;
-  private final String profile;
-  private Namespace defaultNamespace;
   private final Map<String, Namespace> namespaces;
+  private final ExternalAccessStrategy accessStrategy;
+  private final Optional<MinikitCli.DashboardProxy> dashboardProxy;
+  private Namespace defaultNamespace;
 
-  private MinikubeCluster(String profile) {
-    this.profile = profile;
-    ensureMinikubeRunning(profile);
-    this.client = createClient(profile);
-    this.accessStrategy = ExternalAccessStrategy.minikubeService();
+  private MinikubeCluster(String profileName, ProfileLifecyclePolicy policy, MinikitCli cli) {
+    this.profileName = profileName;
+    this.cli = cli;
+    Preflight.verify();
+
+    Object lock = PROFILE_STARTUP_LOCKS.computeIfAbsent(profileName, k -> new Object());
+    boolean owns;
+    synchronized (lock) {
+      ProfileStatus initial = cli.status(profileName);
+      if (initial == ProfileStatus.STARTING) {
+        // Another process is mid-start; wait it out and let that process own the profile.
+        ProfileStatus settled = waitUntilSettled(profileName);
+        owns = (settled != ProfileStatus.RUNNING);
+        if (owns) {
+          cli.up(profileName, UP_TIMEOUT);
+        }
+      } else if (initial == ProfileStatus.RUNNING) {
+        owns = false;
+      } else {
+        owns = true;
+        cli.up(profileName, UP_TIMEOUT);
+      }
+    }
+    this.ownsProfile = owns;
+
+    this.client = createAndPingClient(profileName);
+    this.policy = ownsProfile ? policy : ProfileLifecyclePolicy.LEAVE_RUNNING;
     this.namespaces = new HashMap<>();
-    createNamespace();
+    this.accessStrategy = ExternalAccessStrategy.minikubeService(cli, profileName);
+    Namespace namespace = createNamespace();
+    log.info(
+        "Created TestPods namespace {} in minikube profile {}", namespace.getName(), profileName);
+    this.dashboardProxy = startDashboardProxy(profileName, namespace.getName());
   }
 
-  /** Create a MinikubeCluster using the minikit profile ("minikit"). */
+  /**
+   * Create a MinikubeCluster on the default {@code testpods} profile with {@code DESTROY_ON_CLOSE}.
+   */
   public static MinikubeCluster create() {
-    return new MinikubeCluster(DEFAULT_PROFILE);
+    return builder().build();
   }
 
-  /** Create a MinikubeCluster using a specific profile. */
+  /** Create a MinikubeCluster on a specific profile name with default policy and CLI. */
+  public static MinikubeCluster withProfileName(String profileName) {
+    return builder().profileName(profileName).build();
+  }
+
+  /**
+   * @deprecated Use {@link #withProfileName(String)}. This value is a minikube profile name.
+   */
+  @Deprecated
+  public static MinikubeCluster withNodeName(String nodeName) {
+    return withProfileName(nodeName);
+  }
+
+  /**
+   * @deprecated Use {@link #withProfileName(String)}.
+   */
+  @Deprecated
   public static MinikubeCluster withProfile(String profile) {
-    return new MinikubeCluster(profile);
+    return withProfileName(profile);
+  }
+
+  /** Builder for non-default profile names, policies, or a custom {@link MinikitCli}. */
+  public static Builder builder() {
+    return new Builder();
   }
 
   @Override
@@ -61,7 +144,7 @@ public class MinikubeCluster implements K8sCluster, Closeable {
   @Override
   public Namespace getNamespace(String name) {
     if (!namespaces.containsKey(name)) {
-      //TODO handle namespace not found
+      // TODO handle namespace not found
       return null;
     }
     return namespaces.get(name);
@@ -83,94 +166,283 @@ public class MinikubeCluster implements K8sCluster, Closeable {
     return this;
   }
 
-  private Namespace createNamespaceInCluster(Optional<String> optionalName) {
-    String name = optionalName.orElse(NamespaceNaming.generate());
+  @Override
+  public Namespace attachNamespace(String name) {
+    io.fabric8.kubernetes.api.model.Namespace cn;
     try {
-      var existingNamespaceInCluster = client.namespaces().withName(name).get();
-      if (existingNamespaceInCluster == null) {
-        var clusterNamespace = new NamespaceBuilder().withNewMetadata().withName(name).endMetadata().build();
-        clusterNamespace = client.namespaces().resource(clusterNamespace).create();
-
-        //TODO inspect the conditions to check if the namespace is ready.
-        String phase = clusterNamespace.getStatus().getPhase();
-        List<NamespaceCondition> namespaceConditions = clusterNamespace.getStatus().getConditions();
-
-        final Namespace namespace = new Namespace(name, clusterNamespace);
-        namespaces.put(name, namespace);
-        defaultNamespace = namespace;
-        return namespace;
-      } else {
-        throw new ClusterException("Namespace " + name + " already exists in cluster");
-      }
+      cn = client.namespaces().withName(name).get();
     } catch (KubernetesClientException kce) {
-
+      throw new ClusterException(kce);
     }
-    throw new ClusterException("Unable to create namespace " + name + " in cluster");
-  }
-
-  /** Returns the minikube profile name. */
-  public String getProfile() {
-    return profile;
+    if (cn == null) {
+      throw new ClusterException(
+          "namespace " + name + " does not exist in cluster — cannot attach");
+    }
+    Namespace ns = Namespace.external(name, cn);
+    namespaces.put(name, ns);
+    return ns;
   }
 
   @Override
-  public void close() throws IOException {
-    if (client != null) {
-      client.close();
+  public void deleteNamespace(String name) {
+    Namespace ns = namespaces.get(name);
+    if (ns == null || !ns.isOwned()) {
+      throw new ClusterException(
+          "refusing to delete namespace " + name + " — not created by this MinikubeCluster");
+    }
+    try {
+      client.namespaces().withName(name).delete();
+    } catch (KubernetesClientException kce) {
+      throw new ClusterException(kce);
+    }
+    namespaces.remove(name);
+  }
+
+  private Namespace createNamespaceInCluster(Optional<String> optionalName) {
+    String name = optionalName.orElseGet(NamespaceNaming::generate);
+    try {
+      var existing = client.namespaces().withName(name).get();
+      if (existing != null) {
+        throw new ClusterException(
+            "namespace "
+                + name
+                + " already exists in cluster — use attachNamespace to use an external one");
+      }
+      var clusterNamespace =
+          new NamespaceBuilder().withNewMetadata().withName(name).endMetadata().build();
+      clusterNamespace = client.namespaces().resource(clusterNamespace).create();
+
+      Namespace namespace = Namespace.owned(name, clusterNamespace);
+      namespaces.put(name, namespace);
+      defaultNamespace = namespace;
+      return namespace;
+    } catch (KubernetesClientException kce) {
+      throw new ClusterException(kce);
     }
   }
 
-  private void ensureMinikubeRunning(String profile) {
-    try {
-      // TODO store handle to minikube process for later use and for shutting it down if requested
-      ProcessBuilder pb = new ProcessBuilder("minikube", "status", "-p", profile, "-o", "json");
-      pb.redirectErrorStream(true);
+  /** Returns the minikube profile name backing this cluster. */
+  public String getProfileName() {
+    return profileName;
+  }
 
-      Process process = pb.start();
+  /**
+   * @deprecated Use {@link #getProfileName()}. This value is a minikube profile name.
+   */
+  @Deprecated
+  public String getNodeName() {
+    return getProfileName();
+  }
 
-      StringBuilder output = new StringBuilder();
-      try (BufferedReader reader =
-          new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-        String line;
-        while ((line = reader.readLine()) != null) {
-          output.append(line);
+  /**
+   * @deprecated Use {@link #getProfileName()}.
+   */
+  @Deprecated
+  public String getProfile() {
+    return getProfileName();
+  }
+
+  /** True iff this cluster started the profile and is therefore responsible for stopping it. */
+  public boolean ownsProfile() {
+    return ownsProfile;
+  }
+
+  /**
+   * @deprecated Use {@link #ownsProfile()}.
+   */
+  @Deprecated
+  public boolean ownsNode() {
+    return ownsProfile();
+  }
+
+  /** Returns the local dashboard URL when TestPods was able to start a dashboard proxy. */
+  public Optional<String> getDashboardUrl() {
+    return dashboardProxy.map(MinikitCli.DashboardProxy::url);
+  }
+
+  @Override
+  public void close() {
+    // 1. Best-effort delete every namespace this cluster owns.
+    for (Namespace ns : new ArrayList<>(namespaces.values())) {
+      if (ns.isOwned()) {
+        try {
+          deleteNamespace(ns.getName());
+        } catch (Exception e) {
+          log.warn("Failed to delete owned namespace {} during close: {}", ns.getName(),
+              e.getMessage());
         }
       }
+    }
 
-      int exitCode = process.waitFor();
-
-      if (exitCode != 0) {
-        throw new ClusterException(
-            "Minikube profile '"
-                + profile
-                + "' is not running. "
-                + "Start it with: minikube start -p "
-                + profile);
+    // 2. Close the Fabric8 client.
+    if (client != null) {
+      try {
+        client.close();
+      } catch (Exception e) {
+        log.warn(
+            "Failed to close Kubernetes client for profile {}: {}", profileName, e.getMessage());
       }
+    }
 
-      // Parse JSON to check Host status
-      String json = output.toString();
-      if (!json.contains("\"Host\":\"Running\"")) {
-        throw new ClusterException(
-            "Minikube profile '"
-                + profile
-                + "' host is not running. "
-                + "Start it with: minikube start -p "
-                + profile);
+    // 3. Stop the local dashboard proxy, if dashboard setup succeeded.
+    dashboardProxy.ifPresent(
+        proxy -> {
+          try {
+            proxy.close();
+          } catch (Exception e) {
+            log.warn(
+                "Failed to close dashboard proxy for profile {}: {}",
+                profileName,
+                e.getMessage());
+          }
+        });
+
+    // 4. Apply the lifecycle policy. Failures here are logged, never rethrown — close() must not
+    //    throw.
+    try {
+      switch (policy) {
+        case DESTROY_ON_CLOSE -> cli.destroy(profileName);
+        case STOP_ON_CLOSE -> cli.down(profileName);
+        case LEAVE_RUNNING -> { /* no-op */ }
       }
-
-    } catch (IOException e) {
-      throw new ClusterException("Failed to check minikube status. Is minikube installed?", e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-      throw new ClusterException("Interrupted while checking minikube status", e);
+    } catch (ClusterException e) {
+      log.warn(
+          "Lifecycle policy {} failed for profile {}: {}", policy, profileName, e.getMessage());
     }
   }
 
-  private KubernetesClient createClient(String profile) {
-    Config config = Config.autoConfigure(profile);
-    KubernetesClient kubernetesClient = new KubernetesClientBuilder().withConfig(config).build();
-    //TODO check if the client is ready and check connection to the cluster
-    return kubernetesClient;
+  private Optional<MinikitCli.DashboardProxy> startDashboardProxy(
+      String profileName, String namespaceName) {
+    try {
+      cli.enableDashboardAddon(profileName);
+      MinikitCli.DashboardProxy proxy = cli.startDashboardProxy(profileName, namespaceName);
+      log.info(
+          "Minikube dashboard for profile {} namespace {}: {}",
+          profileName,
+          namespaceName,
+          proxy.url());
+      return Optional.of(proxy);
+    } catch (ClusterException e) {
+      log.warn(
+          "Could not start minikube dashboard proxy for profile {}: {}",
+          profileName,
+          e.getMessage());
+      return Optional.empty();
+    }
+  }
+
+  /**
+   * Poll {@link MinikitCli#status(String)} every {@link #STARTING_WAIT_INTERVAL} until the status
+   * leaves {@link ProfileStatus#STARTING} or {@link #STARTING_WAIT_TIMEOUT} elapses.
+   */
+  private ProfileStatus waitUntilSettled(String profileName) {
+    long start = System.nanoTime();
+    long timeoutNanos = STARTING_WAIT_TIMEOUT.toNanos();
+    ProfileStatus last = ProfileStatus.STARTING;
+    while (System.nanoTime() - start < timeoutNanos) {
+      last = cli.status(profileName);
+      if (last != ProfileStatus.STARTING) {
+        return last;
+      }
+      try {
+        Thread.sleep(STARTING_WAIT_INTERVAL.toMillis());
+      } catch (InterruptedException ie) {
+        Thread.currentThread().interrupt();
+        throw new ClusterException(
+            "Interrupted while waiting for profile " + profileName + " to leave STARTING", ie);
+      }
+    }
+    Duration elapsed = Duration.ofNanos(System.nanoTime() - start);
+    throw new ClusterException(
+        "Profile "
+            + profileName
+            + " still STARTING after "
+            + elapsed
+            + " (last status: "
+            + last
+            + ")");
+  }
+
+  /**
+   * Build a Fabric8 client for {@code profileName} and confirm reachability via a cheap
+   * {@code namespaces().list()}. Retries once with a 2-second pause before giving up.
+   */
+  private KubernetesClient createAndPingClient(String profileName) {
+    Throwable lastFailure = null;
+    for (int attempt = 1; attempt <= 2; attempt++) {
+      Config config = Config.autoConfigure(profileName);
+      KubernetesClient candidate = new KubernetesClientBuilder().withConfig(config).build();
+      try {
+        candidate.namespaces().list();
+        return candidate;
+      } catch (Exception e) {
+        lastFailure = e;
+        try {
+          candidate.close();
+        } catch (Exception closeEx) {
+          // Ignore — we're already in the error path.
+        }
+        if (attempt == 1) {
+          try {
+            Thread.sleep(Duration.ofSeconds(2).toMillis());
+          } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new ClusterException(
+                "Interrupted while waiting to retry Kubernetes API ping for profile " + profileName,
+                ie);
+          }
+        }
+      }
+    }
+    throw new ClusterException(
+        "Kubernetes API server unreachable for profile "
+            + profileName
+            + "; run `kubectl cluster-info` to diagnose",
+        lastFailure);
+  }
+
+  /** Builder for {@link MinikubeCluster}. */
+  public static final class Builder {
+    private String profileName = DEFAULT_PROFILE_NAME;
+    private ProfileLifecyclePolicy policy = ProfileLifecyclePolicy.DESTROY_ON_CLOSE;
+    private MinikitCli cli = new MinikitCli();
+
+    private Builder() {}
+
+    public Builder profileName(String profileName) {
+      this.profileName = profileName;
+      return this;
+    }
+
+    /**
+     * @deprecated Use {@link #profileName(String)}. This value is a minikube profile name.
+     */
+    @Deprecated
+    public Builder nodeName(String nodeName) {
+      return profileName(nodeName);
+    }
+
+    public Builder policy(ProfileLifecyclePolicy policy) {
+      this.policy = policy;
+      return this;
+    }
+
+    /**
+     * @deprecated Use {@link #policy(ProfileLifecyclePolicy)}.
+     */
+    @Deprecated
+    public Builder policy(NodeLifecyclePolicy policy) {
+      this.policy = ProfileLifecyclePolicy.valueOf(policy.name());
+      return this;
+    }
+
+    Builder cli(MinikitCli cli) {
+      this.cli = cli;
+      return this;
+    }
+
+    public MinikubeCluster build() {
+      return new MinikubeCluster(profileName, policy, cli);
+    }
   }
 }

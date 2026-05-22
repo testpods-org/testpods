@@ -3,6 +3,7 @@ package org.testpods.core.provisioning;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -236,18 +237,6 @@ public class ReflectionHelper {
         return initializationsByPodNamePrefixedWithClassName;
     }
 
-    /** @deprecated Use {@link #scanTestPodsProvidersForAllTestPodInitializers(Class[])} instead. */
-    @Deprecated
-    public static Map<String, FieldInitialization> scanTestPodsProvidersForTestPodInitializers(Class<?>[] testpodsProviders) {
-        Map<String, FieldInitialization> initializationsByFieldName = new LinkedHashMap<>();
-        for (Class<?> testpodsProvider : testpodsProviders) {
-            final Map<String, FieldInitialization> stringFieldInitializationMap = scanClassForTestPodInitializationsOnly(testpodsProvider);
-            initializationsByFieldName.putAll(stringFieldInitializationMap);
-
-        }
-        return initializationsByFieldName;
-    }
-
     /**
      * Attempts to create an instance using the no-arg constructor.
      * Returns null and logs a warning if the constructor is absent or throws.
@@ -270,32 +259,100 @@ public class ReflectionHelper {
     }
 
     /**
+     * Scans a single provider class for initialized {@link TestPod} fields, covering both
+     * static fields and (when {@code instance} is non-null) non-static fields.
+     *
+     * <p>This method does not instantiate the provider itself — the caller is responsible
+     * for supplying a pre-created instance, which prevents the provider's no-arg constructor
+     * from being invoked multiple times across distinct scanning passes.
+     *
+     * @param provider the provider class to scan
+     * @param instance an already-created instance for non-static field scanning, or {@code null}
+     *                 to scan only static fields
+     * @return a map of field name (prefixed with class name) to {@link FieldInitialization}
+     */
+    static Map<String, FieldInitialization> scanTestPodsProviderForTestPodInitializations(
+            Class<?> provider, Object instance) {
+        Map<String, FieldInitialization> result = new LinkedHashMap<>();
+        result.putAll(scanClassForTestPodInitializationsOnly(provider, null));
+        if (instance != null) {
+            result.putAll(scanClassForTestPodInitializationsOnly(provider, instance));
+        }
+        return result;
+    }
+
+    /**
      * Scans each provider class for initialized {@link TestPod} fields,
-     * including non-static fields by instantiating each provider.
+     * including non-static fields by instantiating each provider once.
+     *
+     * <p>Prefer {@link #scanTestPodsProvidersForAllTestPodInitializers(Class[], Map)} when the
+     * caller already has pre-created provider instances, to avoid invoking provider constructors
+     * more than once.
      */
     public static Map<String, FieldInitialization> scanTestPodsProvidersForAllTestPodInitializers(
             Class<?>[] testpodsProviders) {
-        Map<String, FieldInitialization> result = new LinkedHashMap<>();
+        Map<Class<?>, Object> instances = new HashMap<>();
         for (Class<?> provider : testpodsProviders) {
-            result.putAll(scanClassForTestPodInitializationsOnly(provider, null));
             Object instance = tryInstantiate(provider);
             if (instance != null) {
-                result.putAll(scanClassForTestPodInitializationsOnly(provider, instance));
+                instances.put(provider, instance);
             }
+        }
+        return scanTestPodsProvidersForAllTestPodInitializers(testpodsProviders, instances);
+    }
+
+    /**
+     * Scans each provider class for initialized {@link TestPod} fields using already-created
+     * provider instances. This overload is intended for callers that need to share a single
+     * instance per provider across multiple scanning passes (for example, the JUnit extension
+     * scans for both pod initializations and cluster registration during {@code beforeAll}).
+     *
+     * @param testpodsProviders provider classes to scan
+     * @param instances map from provider class to its pre-created instance; providers missing
+     *                  from the map have only their static fields scanned
+     */
+    public static Map<String, FieldInitialization> scanTestPodsProvidersForAllTestPodInitializers(
+            Class<?>[] testpodsProviders, Map<Class<?>, Object> instances) {
+        Map<String, FieldInitialization> result = new LinkedHashMap<>();
+        for (Class<?> provider : testpodsProviders) {
+            result.putAll(scanTestPodsProviderForTestPodInitializations(provider, instances.get(provider)));
         }
         return result;
     }
 
     /**
      * Scans each provider class for a {@link RegisterCluster}-annotated field,
-     * including non-static fields by instantiating each provider.
+     * including non-static fields by instantiating each provider once.
      * Returns the first cluster found, or null.
+     *
+     * <p>Prefer {@link #scanTestPodsProvidersForClusterRegistration(Class[], Map)} when the
+     * caller already has pre-created provider instances.
      */
     public static K8sCluster scanTestPodsProvidersForClusterRegistration(Class<?>[] testpodsProviders) {
+        Map<Class<?>, Object> instances = new HashMap<>();
+        for (Class<?> provider : testpodsProviders) {
+            Object instance = tryInstantiate(provider);
+            if (instance != null) {
+                instances.put(provider, instance);
+            }
+        }
+        return scanTestPodsProvidersForClusterRegistration(testpodsProviders, instances);
+    }
+
+    /**
+     * Scans each provider class for a {@link RegisterCluster}-annotated field using
+     * already-created provider instances. Returns the first cluster found, or {@code null}.
+     *
+     * @param testpodsProviders provider classes to scan
+     * @param instances map from provider class to its pre-created instance; providers missing
+     *                  from the map have only their static fields scanned
+     */
+    public static K8sCluster scanTestPodsProvidersForClusterRegistration(
+            Class<?>[] testpodsProviders, Map<Class<?>, Object> instances) {
         for (Class<?> provider : testpodsProviders) {
             K8sCluster cluster = scanClassForClusterRegistration(provider, null);
             if (cluster != null) return cluster;
-            Object instance = tryInstantiate(provider);
+            Object instance = instances.get(provider);
             if (instance != null) {
                 cluster = scanClassForClusterRegistration(provider, instance);
                 if (cluster != null) return cluster;

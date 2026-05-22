@@ -11,6 +11,6 @@ public @interface TestPod {
 
     String value() default "";
     String podName() default "";
+    TestPodLifecycle lifecycle() default TestPodLifecycle.PER_CLASS;
 }
-
 

@@ -4,9 +4,7 @@ import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.LocalPortForward;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -64,9 +62,26 @@ public interface ExternalAccessStrategy {
     return new LoadBalancerAccessStrategy();
   }
 
-  /** Use Minikube's service URL mechanism. Only works with Minikube clusters. */
+  /**
+   * Use Minikube's service URL mechanism. Only works with Minikube clusters.
+   *
+   * @deprecated This factory has no profile context and cannot construct a usable strategy.
+   *     Construct a {@link MinikubeCluster} via {@code MinikubeCluster.create()} — it wires the
+   *     profile-aware strategy internally.
+   */
+  @Deprecated
   static ExternalAccessStrategy minikubeService() {
-    return new MinikubeServiceAccessStrategy();
+    throw new UnsupportedOperationException(
+        "Use MinikubeCluster.create() — profile context is required for the "
+            + "minikube service strategy");
+  }
+
+  /**
+   * Package-private factory used by {@link MinikubeCluster} to wire the access strategy with the
+   * profile context required by {@link MinikitCli}.
+   */
+  static ExternalAccessStrategy minikubeService(MinikitCli cli, String profileName) {
+    return new MinikubeServiceAccessStrategy(cli, profileName);
   }
 }
 
@@ -286,12 +301,19 @@ class LoadBalancerAccessStrategy implements ExternalAccessStrategy {
 // =============================================================
 
 /**
- * Uses Minikube's service URL mechanism. Runs 'minikube service --url' to get the external
- * endpoint.
+ * Uses Minikube's service URL mechanism via {@link MinikitCli} to get the external endpoint.
+ * Constructed by {@link MinikubeCluster} with the profile context required by the CLI wrapper.
  */
 class MinikubeServiceAccessStrategy implements ExternalAccessStrategy {
 
+  private final MinikitCli cli;
+  private final String profileName;
   private final Map<String, HostAndPort> cachedEndpoints = new ConcurrentHashMap<>();
+
+  MinikubeServiceAccessStrategy(MinikitCli cli, String profileName) {
+    this.cli = cli;
+    this.profileName = profileName;
+  }
 
   @Override
   public HostAndPort getExternalEndpoint(Pod<?> pod, int internalPort) {
@@ -301,86 +323,41 @@ class MinikubeServiceAccessStrategy implements ExternalAccessStrategy {
         key,
         k -> {
           try {
-            // Run: minikube service <n> -n <namespace> --url
-            ProcessBuilder pb =
-                new ProcessBuilder(
-                    "minikube",
-                    "service",
-                    pod.getName(),
-                    "-p",
-                    "minikit",
-                    "-n",
-                    pod.getNamespace().getName(),
-                    "--url");
-            pb.redirectErrorStream(true);
-
-            Process process = pb.start();
-
-            try (BufferedReader reader =
-                new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-
-              String line;
-              while ((line = reader.readLine()) != null) {
-                line = line.trim();
-                // Look for URL format: http://192.168.49.2:30001
-                if (line.startsWith("http://") || line.startsWith("https://")) {
-                  // Parse the URL
-                  String withoutProtocol = line.replaceFirst("https?://", "");
-                  return HostAndPort.parse(withoutProtocol);
-                }
-              }
-            }
-
-            int exitCode = process.waitFor();
-            if (exitCode != 0) {
-              throw new RuntimeException(
-                  "minikube service command failed with exit code " + exitCode);
-            }
-
-            throw new RuntimeException("Could not parse minikube service URL output");
-
-          } catch (IOException | InterruptedException e) {
-            // Fallback to NodePort strategy
+            String url = cli.serviceUrl(profileName, pod.getNamespace().getName(), pod.getName());
+            String withoutProtocol = url.trim().replaceFirst("https?://", "");
+            return HostAndPort.parse(withoutProtocol);
+          } catch (ClusterException e) {
+            // Fallback to NodePort strategy (matches the previous IOException/InterruptedException
+            // behaviour — any CLI failure falls back).
             return fallbackToNodePort(pod, internalPort);
           }
         });
   }
 
   private HostAndPort fallbackToNodePort(Pod<?> pod, int internalPort) {
+    String minikubeIp;
     try {
-      // Get minikube IP
-      ProcessBuilder pb = new ProcessBuilder("minikube", "ip");
-      pb.redirectErrorStream(true);
-      Process process = pb.start();
+      minikubeIp = cli.nodeIp(profileName);
+    } catch (ClusterException e) {
+      minikubeIp = "192.168.49.2"; // Common default
+    }
+    if (minikubeIp == null || minikubeIp.isEmpty()) {
+      minikubeIp = "192.168.49.2"; // Common default
+    }
 
-      String minikubeIp;
-      try (BufferedReader reader =
-          new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-        minikubeIp = reader.readLine();
-      }
-      process.waitFor();
+    // Get NodePort from service
+    KubernetesClient client = pod.getCluster().getClient();
+    Service service =
+        client.services().inNamespace(pod.getNamespace().getName()).withName(pod.getName()).get();
 
-      if (minikubeIp == null || minikubeIp.isEmpty()) {
-        minikubeIp = "192.168.49.2"; // Common default
-      }
-
-      // Get NodePort from service
-      KubernetesClient client = pod.getCluster().getClient();
-      Service service =
-          client.services().inNamespace(pod.getNamespace().getName()).withName(pod.getName()).get();
-
-      if (service != null) {
-        for (ServicePort port : service.getSpec().getPorts()) {
-          if (port.getPort().equals(internalPort) && port.getNodePort() != null) {
-            return new HostAndPort(minikubeIp.trim(), port.getNodePort());
-          }
+    if (service != null) {
+      for (ServicePort port : service.getSpec().getPorts()) {
+        if (port.getPort().equals(internalPort) && port.getNodePort() != null) {
+          return new HostAndPort(minikubeIp.trim(), port.getNodePort());
         }
       }
-
-      throw new RuntimeException("Could not determine external endpoint for " + pod.getName());
-
-    } catch (IOException | InterruptedException e) {
-      throw new RuntimeException("Failed to get minikube service URL", e);
     }
+
+    throw new RuntimeException("Could not determine external endpoint for " + pod.getName());
   }
 }

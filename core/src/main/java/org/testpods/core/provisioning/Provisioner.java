@@ -12,13 +12,21 @@ public class Provisioner {
     public Provisioner() {
     }
 
+    /** Tear down test pods and resources via the registry. Cluster lifecycle is owned by MinikubeCluster.close(). */
     public void tearDown() {
-        // stop the cluster and delete the namespace
-        // inspect the K8sCluster annotation to see if the cluster should be stopped and namespace deleted
-
+        if (registry != null) registry.tearDown();
     }
 
     public void setRegistry(Registry registry) {
         this.registry = registry;
+    }
+
+
+    public void ensureClusterIsReady() {
+
+    }
+
+    public void ensureNamespaceIsActive() {
+
     }
 }

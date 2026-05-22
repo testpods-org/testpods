@@ -5,6 +5,7 @@ import io.fabric8.kubernetes.client.KubernetesClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtensionContext;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.cluster.ExternalAccessStrategy;
@@ -15,9 +16,9 @@ import org.testpods.core.pods.builders.InitContainerBuilder;
 import org.testpods.core.pods.builders.SidecarBuilder;
 import org.testpods.core.provisioning.Registry;
 import org.testpods.core.wait.WaitStrategy;
-import org.testpods.junit.RegisterCluster;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -39,9 +40,47 @@ class TestPodsExtensionAssignmentTest {
             @Override public Namespace getNamespace(String name) { return null; }
             @Override public Namespace createNamespace(String name) { return null; }
             @Override public Namespace createNamespace() { return null; }
+            @Override public Namespace attachNamespace(String name) { return null; }
+            @Override public void deleteNamespace(String name) {}
             @Override public K8sCluster withNamespace() { return this; }
             @Override public void close() {}
         };
+    }
+
+    /** A second concrete pod type, distinct from {@link StubPod}, for type-mismatch tests. */
+    static class OtherStubPod implements Pod<OtherStubPod> {
+        private final String name;
+
+        OtherStubPod(String name) { this.name = name; }
+
+        @Override public String getName() { return name; }
+        @Override public OtherStubPod withName(String n) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod inNamespace(Namespace ns) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod inNamespace(String ns) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod inCluster(K8sCluster c) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod withLabels(Map<String, String> l) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod withAnnotations(Map<String, String> a) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod withResources(String cpu, String mem) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod withInitContainer(Consumer<InitContainerBuilder> c) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod withSidecar(Consumer<SidecarBuilder> c) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod withPodCustomizer(UnaryOperator<PodSpecBuilder> c) { throw new UnsupportedOperationException(); }
+        @Override public OtherStubPod waitingFor(WaitStrategy s) { throw new UnsupportedOperationException(); }
+        @Override public void start() {}
+        @Override public void stop() {}
+        @Override public boolean isRunning() { return false; }
+        @Override public boolean isReady() { return false; }
+        @Override public String getLogs() { return null; }
+        @Override public String getLogs(Duration since) { return null; }
+        @Override public String getLogs(String containerName) { return null; }
+        @Override public ExecResult exec(String... command) { return null; }
+        @Override public ExecResult exec(String containerName, String... command) { return null; }
+        @Override public Namespace getNamespace() { return null; }
+        @Override public K8sCluster getCluster() { return null; }
+        @Override public String getInternalHost() { return null; }
+        @Override public int getInternalPort() { return 0; }
+        @Override public String getExternalHost() { return null; }
+        @Override public int getExternalPort() { return 0; }
+        @Override public void publishProperties(PropertyContext ctx) {}
     }
 
     static class StubPod implements Pod<StubPod> {
@@ -95,6 +134,17 @@ class TestPodsExtensionAssignmentTest {
         return f;
     }
 
+    private static ExtensionContext contextFor(Class<?> testClass) {
+        return (ExtensionContext) Proxy.newProxyInstance(
+                ExtensionContext.class.getClassLoader(),
+                new Class<?>[] { ExtensionContext.class },
+                (proxy, method, args) -> {
+                    if (method.getName().equals("getRequiredTestClass")) return testClass;
+                    if (method.getName().equals("toString")) return "ExtensionContext(" + testClass.getName() + ")";
+                    throw new UnsupportedOperationException(method.getName());
+                });
+    }
+
     @SuppressWarnings("unchecked")
     private static Map<String, org.testpods.core.provisioning.FieldInitialization> getInitializations(Registry registry)
             throws Exception {
@@ -133,26 +183,26 @@ class TestPodsExtensionAssignmentTest {
 
         @Test
         void nullField_getsClusterAssigned() {
-            extension.assignClusterToTestClassField(OneNullField.class, STUB_CLUSTER);
+            extension.assignClusterToTestClassStaticField(OneNullField.class, STUB_CLUSTER);
             assertThat(OneNullField.cluster).isSameAs(STUB_CLUSTER);
         }
 
         @Test
         void initializedField_notOverwritten() {
-            extension.assignClusterToTestClassField(OneInitializedField.class, STUB_CLUSTER);
+            extension.assignClusterToTestClassStaticField(OneInitializedField.class, STUB_CLUSTER);
             assertThat(OneInitializedField.cluster).isSameAs(OTHER_CLUSTER);
         }
 
         @Test
         void multipleNullFields_allGetAssigned() {
-            extension.assignClusterToTestClassField(TwoNullFields.class, STUB_CLUSTER);
+            extension.assignClusterToTestClassStaticField(TwoNullFields.class, STUB_CLUSTER);
             assertThat(TwoNullFields.cluster1).isSameAs(STUB_CLUSTER);
             assertThat(TwoNullFields.cluster2).isSameAs(STUB_CLUSTER);
         }
 
         @Test
         void noK8sClusterField_doesNotThrow() {
-            assertThatCode(() -> extension.assignClusterToTestClassField(NoK8sClusterField.class, STUB_CLUSTER))
+            assertThatCode(() -> extension.assignClusterToTestClassStaticField(NoK8sClusterField.class, STUB_CLUSTER))
                     .doesNotThrowAnyException();
         }
     }
@@ -327,6 +377,58 @@ class TestPodsExtensionAssignmentTest {
             extension.assignPodsToNonStaticFields(podTarget, podTarget.getClass(), registry);
             assertThat(podTarget.myPod).isNull();
         }
+
+        static class WithMismatchedPodType {
+            @TestPod
+            OtherStubPod myPod;
+        }
+
+        static class WithClusterAndPod {
+            K8sCluster cluster;
+
+            @TestPod
+            StubPod myPod;
+        }
+
+        @Test
+        void assignPodsToNonStaticFields_skipsField_whenTypeDoesNotMatch() {
+            // Registry has a StubPod under name "myPod", but the field is typed OtherStubPod.
+            // The extension should warn and leave the field as null rather than throw.
+            registry.addPod("myPod", new StubPod("myPod"));
+            WithMismatchedPodType instance = new WithMismatchedPodType();
+
+            assertThatCode(() ->
+                    extension.assignPodsToNonStaticFields(instance, instance.getClass(), registry))
+                    .doesNotThrowAnyException();
+            assertThat(instance.myPod).isNull();
+        }
+
+        @Test
+        void beforeEach_path_doesNotThrow_whenRegistryClusterIsNull() {
+            // Mirrors the null-guard in beforeEach: when registry.getCluster() is null,
+            // the extension must not attempt cluster assignment and must not crash.
+            // Verify the guard's precondition: registry has no cluster by default.
+            assertThat(registry.getCluster()).isNull();
+
+            // And verify that the pod-assignment path that runs unconditionally in beforeEach
+            // does not throw when the registry has no cluster.
+            assertThatCode(() ->
+                    extension.assignPodsToNonStaticFields(podTarget, podTarget.getClass(), registry))
+                    .doesNotThrowAnyException();
+        }
+
+        @Test
+        void postProcessTestInstance_injectsIntoProvidedJUnitInstance() throws Exception {
+            WithClusterAndPod instance = new WithClusterAndPod();
+            StubPod pod = new StubPod("myPod");
+            registry.setCluster(STUB_CLUSTER);
+            registry.addPod("myPod", pod);
+
+            extension.postProcessTestInstance(instance, contextFor(WithClusterAndPod.class));
+
+            assertThat(instance.cluster).isSameAs(STUB_CLUSTER);
+            assertThat(instance.myPod).isSameAs(pod);
+        }
     }
 
     @Nested
@@ -334,6 +436,12 @@ class TestPodsExtensionAssignmentTest {
 
         @TestPods
         static class TestClassWithNonStaticPod {
+            static int instantiations = 0;
+
+            TestClassWithNonStaticPod() {
+                instantiations++;
+            }
+
             @RegisterCluster
             static K8sCluster cluster = STUB_CLUSTER;
 
@@ -346,18 +454,52 @@ class TestPodsExtensionAssignmentTest {
             StubPod providerPod = new StubPod("providerPod");
         }
 
+        static class SecondProviderWithNonStaticPod {
+            @TestPod
+            StubPod secondProviderPod = new StubPod("secondProviderPod");
+        }
+
+        static class ProviderWithStaticCluster {
+            @RegisterCluster
+            static K8sCluster cluster = OTHER_CLUSTER;
+        }
+
+        static class ProviderWithNonStaticCluster {
+            @RegisterCluster
+            K8sCluster cluster = OTHER_CLUSTER;
+        }
+
         @TestPods(testpodsProviders = {ProviderWithNonStaticPod.class})
         static class TestClassUsingProvider {
             @RegisterCluster
             static K8sCluster cluster = STUB_CLUSTER;
         }
 
+        @TestPods(testpodsProviders = {
+                ProviderWithNonStaticPod.class,
+                SecondProviderWithNonStaticPod.class
+        })
+        static class TestClassUsingMultiplePodProviders {
+            @RegisterCluster
+            static K8sCluster cluster = STUB_CLUSTER;
+        }
+
+        @TestPods(testpodsProviders = {ProviderWithStaticCluster.class, ProviderWithNonStaticPod.class})
+        static class TestClassUsingStaticProviderCluster {
+        }
+
+        @TestPods(testpodsProviders = {ProviderWithNonStaticCluster.class, ProviderWithNonStaticPod.class})
+        static class TestClassUsingNonStaticProviderCluster {
+        }
+
         @Test
-        void nonStaticInitializedPodInTestClass_registeredViaProbeInstance() throws Exception {
+        void nonStaticInitializedPodInTestClass_notRegisteredViaProbeInstance() throws Exception {
+            TestClassWithNonStaticPod.instantiations = 0;
             extension.testPodsAnnotation = TestClassWithNonStaticPod.class.getAnnotation(TestPods.class);
             extension.populateAndValidateRegistry(TestClassWithNonStaticPod.class);
             var inits = getInitializations(extension.registry);
-            assertThat(inits.values()).anyMatch(fi -> fi.podName().equals("kafkaPod"));
+            assertThat(inits.values()).noneMatch(fi -> fi.podName().equals("kafkaPod"));
+            assertThat(TestClassWithNonStaticPod.instantiations).isZero();
         }
 
         @Test
@@ -366,6 +508,74 @@ class TestPodsExtensionAssignmentTest {
             extension.populateAndValidateRegistry(TestClassUsingProvider.class);
             var inits = getInitializations(extension.registry);
             assertThat(inits.values()).anyMatch(fi -> fi.podName().equals("providerPod"));
+        }
+
+        @Test
+        void multipleProvidersWithNonStaticPods_allRegisteredWhenProviderScanned() throws Exception {
+            extension.testPodsAnnotation = TestClassUsingMultiplePodProviders.class.getAnnotation(TestPods.class);
+            extension.populateAndValidateRegistry(TestClassUsingMultiplePodProviders.class);
+
+            var inits = getInitializations(extension.registry);
+
+            assertThat(inits.values()).anyMatch(fi -> fi.podName().equals("providerPod"));
+            assertThat(inits.values()).anyMatch(fi -> fi.podName().equals("secondProviderPod"));
+        }
+
+        @Test
+        void staticClusterFromProvider_isUsedWhenTestClassHasNoCluster() {
+            extension.testPodsAnnotation = TestClassUsingStaticProviderCluster.class.getAnnotation(TestPods.class);
+
+            extension.populateAndValidateRegistry(TestClassUsingStaticProviderCluster.class);
+
+            assertThat(extension.registry.getCluster()).isSameAs(OTHER_CLUSTER);
+        }
+
+        @Test
+        void nonStaticClusterFromProvider_isUsedWhenTestClassHasNoCluster() {
+            extension.testPodsAnnotation = TestClassUsingNonStaticProviderCluster.class.getAnnotation(TestPods.class);
+
+            extension.populateAndValidateRegistry(TestClassUsingNonStaticProviderCluster.class);
+
+            assertThat(extension.registry.getCluster()).isSameAs(OTHER_CLUSTER);
+        }
+
+        @Test
+        void providerCanSupplyBothClusterAndTestPodConfiguration() throws Exception {
+            extension.testPodsAnnotation = TestClassUsingStaticProviderCluster.class.getAnnotation(TestPods.class);
+
+            extension.populateAndValidateRegistry(TestClassUsingStaticProviderCluster.class);
+
+            var inits = getInitializations(extension.registry);
+            assertThat(extension.registry.getCluster()).isSameAs(OTHER_CLUSTER);
+            assertThat(inits.values()).anyMatch(fi -> fi.podName().equals("providerPod"));
+        }
+    }
+
+    @Nested
+    class TestPodLifecycleAttributeTests {
+
+        static class WithDefaultLifecycle {
+            @TestPod
+            static StubPod myPod;
+        }
+
+        static class WithPerMethodLifecycle {
+            @TestPod(lifecycle = TestPodLifecycle.PER_METHOD)
+            static StubPod myPod;
+        }
+
+        @Test
+        void testPodLifecycle_defaultsToPerClass() throws Exception {
+            TestPod annotation = field(WithDefaultLifecycle.class, "myPod").getAnnotation(TestPod.class);
+
+            assertThat(annotation.lifecycle()).isEqualTo(TestPodLifecycle.PER_CLASS);
+        }
+
+        @Test
+        void testPodLifecycle_canBeSetToPerMethod() throws Exception {
+            TestPod annotation = field(WithPerMethodLifecycle.class, "myPod").getAnnotation(TestPod.class);
+
+            assertThat(annotation.lifecycle()).isEqualTo(TestPodLifecycle.PER_METHOD);
         }
     }
 }

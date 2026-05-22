@@ -423,8 +423,18 @@ class TestPodDefaultsThreadSafetyTest {
     }
 
     @Override
+    public Namespace attachNamespace(String name) {
+      throw new UnsupportedOperationException("MockCluster does not support attachNamespace()");
+    }
+
+    @Override
+    public void deleteNamespace(String name) {
+      throw new UnsupportedOperationException("MockCluster does not support deleteNamespace()");
+    }
+
+    @Override
     public K8sCluster withNamespace() {
-      throw new UnsupportedOperationException("MockCluster does not support withNamespace()");   
+      throw new UnsupportedOperationException("MockCluster does not support withNamespace()");
     }
 
     @Override

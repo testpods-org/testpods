@@ -73,5 +73,13 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- JUnit Platform Launcher: needed for MinikitTestFixture.PerSuite (LauncherSessionListener) -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>6.0.1</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 </project>
