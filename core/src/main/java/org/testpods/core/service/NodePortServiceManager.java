@@ -56,16 +56,27 @@ public class NodePortServiceManager implements ServiceManager {
             .withNewSpec()
             .withSelector(config.selector())
             .withType("NodePort")
-            .addNewPort()
-            .withName("primary")
-            .withPort(config.port())
-            .withTargetPort(new IntOrString(config.port()))
-            .endPort()
             .endSpec();
 
-    // Set specific node port if configured
-    if (specifiedNodePort != null) {
-      builder.editSpec().editFirstPort().withNodePort(specifiedNodePort).endPort().endSpec();
+    for (Integer port : config.ports()) {
+      Integer nodePort =
+          port.equals(config.port()) && specifiedNodePort != null
+              ? specifiedNodePort
+              : config.nodePorts().get(port);
+      if (nodePort == null && port.equals(config.port())) {
+        nodePort = config.nodePort();
+      }
+      var portBuilder =
+          builder
+              .editSpec()
+              .addNewPort()
+              .withName(port.equals(config.port()) ? "primary" : "port-" + port)
+              .withPort(port)
+              .withTargetPort(new IntOrString(port));
+      if (nodePort != null) {
+        portBuilder.withNodePort(nodePort);
+      }
+      portBuilder.endPort().endSpec();
     }
 
     // Apply customizers

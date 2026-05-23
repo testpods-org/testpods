@@ -26,9 +26,12 @@ public record ServiceConfig(
     String name,
     String namespace,
     int port,
+    List<Integer> ports,
     Map<String, String> labels,
     Map<String, String> selector,
     List<UnaryOperator<ServiceBuilder>> customizers,
+    Integer nodePort,
+    Map<Integer, Integer> nodePorts,
     KubernetesClient client) {
 
   public ServiceConfig {
@@ -36,6 +39,15 @@ public record ServiceConfig(
     Objects.requireNonNull(namespace, "namespace must not be null");
     if (port <= 0 || port > 65535) {
       throw new IllegalArgumentException("port must be between 1 and 65535");
+    }
+    if (nodePort != null && (nodePort <= 0 || nodePort > 65535)) {
+      throw new IllegalArgumentException("nodePort must be between 1 and 65535");
+    }
+    ports = normalizePorts(port, ports);
+    nodePorts = nodePorts != null ? Map.copyOf(nodePorts) : Map.of();
+    for (Map.Entry<Integer, Integer> e : nodePorts.entrySet()) {
+      validatePort(e.getKey(), "nodePorts key");
+      validatePort(e.getValue(), "nodePorts value");
     }
     Objects.requireNonNull(client, "client must not be null");
     labels = labels != null ? Map.copyOf(labels) : Map.of();
@@ -48,14 +60,40 @@ public record ServiceConfig(
     return new Builder();
   }
 
+  private static List<Integer> normalizePorts(int primaryPort, List<Integer> configuredPorts) {
+    List<Integer> result = new ArrayList<>();
+    result.add(primaryPort);
+    if (configuredPorts != null) {
+      for (Integer configuredPort : configuredPorts) {
+        if (configuredPort == null) {
+          continue;
+        }
+        validatePort(configuredPort, "ports");
+        if (!result.contains(configuredPort)) {
+          result.add(configuredPort);
+        }
+      }
+    }
+    return List.copyOf(result);
+  }
+
+  private static void validatePort(int port, String name) {
+    if (port <= 0 || port > 65535) {
+      throw new IllegalArgumentException(name + " must be between 1 and 65535");
+    }
+  }
+
   /** Fluent builder for ServiceConfig. */
   public static class Builder {
     private String name;
     private String namespace;
     private int port;
+    private List<Integer> ports = new ArrayList<>();
     private Map<String, String> labels = new LinkedHashMap<>();
     private Map<String, String> selector = new LinkedHashMap<>();
     private List<UnaryOperator<ServiceBuilder>> customizers = new ArrayList<>();
+    private Integer nodePort;
+    private Map<Integer, Integer> nodePorts = new LinkedHashMap<>();
     private KubernetesClient client;
 
     public Builder name(String name) {
@@ -70,6 +108,16 @@ public record ServiceConfig(
 
     public Builder port(int port) {
       this.port = port;
+      return this;
+    }
+
+    public Builder ports(Iterable<Integer> ports) {
+      this.ports = new ArrayList<>();
+      if (ports != null) {
+        for (Integer port : ports) {
+          this.ports.add(port);
+        }
+      }
       return this;
     }
 
@@ -93,13 +141,24 @@ public record ServiceConfig(
       return this;
     }
 
+    public Builder nodePort(Integer nodePort) {
+      this.nodePort = nodePort;
+      return this;
+    }
+
+    public Builder nodePorts(Map<Integer, Integer> nodePorts) {
+      this.nodePorts = new LinkedHashMap<>(nodePorts);
+      return this;
+    }
+
     public Builder client(KubernetesClient client) {
       this.client = client;
       return this;
     }
 
     public ServiceConfig build() {
-      return new ServiceConfig(name, namespace, port, labels, selector, customizers, client);
+      return new ServiceConfig(
+          name, namespace, port, ports, labels, selector, customizers, nodePort, nodePorts, client);
     }
   }
 }

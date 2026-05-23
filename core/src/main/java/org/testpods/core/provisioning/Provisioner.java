@@ -29,4 +29,8 @@ public class Provisioner {
     public void ensureNamespaceIsActive() {
 
     }
+
+    public void provisionTestPods() {
+        if (registry != null) registry.provisionTestPods();
+    }
 }

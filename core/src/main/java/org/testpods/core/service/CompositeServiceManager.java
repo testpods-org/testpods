@@ -81,9 +81,12 @@ public class CompositeServiceManager implements ServiceManager {
               config.name() + suffix,
               config.namespace(),
               config.port(),
+              config.ports(),
               config.labels(),
               config.selector(),
               config.customizers(),
+              config.nodePort(),
+              config.nodePorts(),
               config.client());
 
       Service svc = manager.create(adjustedConfig);

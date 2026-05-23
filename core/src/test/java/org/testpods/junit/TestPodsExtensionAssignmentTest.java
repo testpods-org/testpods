@@ -9,6 +9,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.cluster.ExternalAccessStrategy;
+import org.testpods.core.cluster.HostAndPort;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.cluster.Namespace;
 import org.testpods.core.pods.Pod;
@@ -21,6 +22,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
@@ -31,6 +33,11 @@ class TestPodsExtensionAssignmentTest {
 
     static final K8sCluster STUB_CLUSTER = stubCluster();
     static final K8sCluster OTHER_CLUSTER = stubCluster();
+    static final Namespace STUB_NAMESPACE =
+            Namespace.owned("testpods-test", new io.fabric8.kubernetes.api.model.NamespaceBuilder()
+                    .withNewMetadata().withName("testpods-test").endMetadata()
+                    .withNewStatus().withPhase("Active").endStatus()
+                    .build());
 
     private static K8sCluster stubCluster() {
         return new K8sCluster() {
@@ -140,6 +147,7 @@ class TestPodsExtensionAssignmentTest {
                 new Class<?>[] { ExtensionContext.class },
                 (proxy, method, args) -> {
                     if (method.getName().equals("getRequiredTestClass")) return testClass;
+                    if (method.getName().equals("getTestInstance")) return Optional.empty();
                     if (method.getName().equals("toString")) return "ExtensionContext(" + testClass.getName() + ")";
                     throw new UnsupportedOperationException(method.getName());
                 });
@@ -151,6 +159,110 @@ class TestPodsExtensionAssignmentTest {
         java.lang.reflect.Field f = Registry.class.getDeclaredField("testPodInitializationsByName");
         f.setAccessible(true);
         return (Map<String, org.testpods.core.provisioning.FieldInitialization>) f.get(registry);
+    }
+
+    @Nested
+    class ExtensionProvisioningTests {
+
+        static class RecordingCluster implements K8sCluster {
+            boolean closed;
+
+            @Override public KubernetesClient getClient() { return null; }
+            @Override public ExternalAccessStrategy getAccessStrategy() {
+                return (pod, internalPort) -> new HostAndPort("127.0.0.1", 30000 + internalPort % 1000);
+            }
+            @Override public Namespace getDefaultNamespace() { return STUB_NAMESPACE; }
+            @Override public Namespace getNamespace(String name) {
+                return STUB_NAMESPACE.getName().equals(name) ? STUB_NAMESPACE : null;
+            }
+            @Override public Namespace createNamespace(String name) { return STUB_NAMESPACE; }
+            @Override public Namespace createNamespace() { return STUB_NAMESPACE; }
+            @Override public Namespace attachNamespace(String name) { return STUB_NAMESPACE; }
+            @Override public void deleteNamespace(String name) {}
+            @Override public K8sCluster withNamespace() { return this; }
+            @Override public void close() { closed = true; }
+        }
+
+        static class RecordingPod extends StubPod {
+            K8sCluster cluster;
+            Namespace namespace;
+            boolean started;
+            boolean stopped;
+
+            RecordingPod(String name) {
+                super(name);
+            }
+
+            @Override public RecordingPod inCluster(K8sCluster cluster) {
+                this.cluster = cluster;
+                return this;
+            }
+
+            @Override public RecordingPod inNamespace(Namespace namespace) {
+                this.namespace = namespace;
+                return this;
+            }
+
+            @Override public void start() {
+                started = true;
+                if (namespace == null && cluster != null) {
+                    namespace = cluster.getDefaultNamespace();
+                }
+            }
+
+            @Override public void stop() {
+                stopped = true;
+            }
+
+            @Override public Namespace getNamespace() {
+                return namespace;
+            }
+
+            @Override public K8sCluster getCluster() {
+                return cluster;
+            }
+
+            @Override public String getExternalHost() {
+                return "127.0.0.1";
+            }
+
+            @Override public int getExternalPort() {
+                return 35432;
+            }
+        }
+
+        @TestPods
+        static class TestClassWithInitializedPod {
+            static RecordingCluster cluster = new RecordingCluster();
+
+            @RegisterCluster
+            static K8sCluster registeredCluster = cluster;
+
+            @TestPod
+            static RecordingPod postgres = new RecordingPod("postgres");
+        }
+
+        @Test
+        void beforeAll_provisionsInitializedTestPodAndAfterAllStopsIt() throws Exception {
+            TestClassWithInitializedPod.cluster = new RecordingCluster();
+            TestClassWithInitializedPod.registeredCluster = TestClassWithInitializedPod.cluster;
+            TestClassWithInitializedPod.postgres = new RecordingPod("postgres");
+
+            try {
+                extension.beforeAll(contextFor(TestClassWithInitializedPod.class));
+
+                assertThat(TestClassWithInitializedPod.postgres.started).isTrue();
+                assertThat(TestClassWithInitializedPod.postgres.getCluster())
+                        .isSameAs(TestClassWithInitializedPod.cluster);
+                assertThat(TestClassWithInitializedPod.postgres.getNamespace()).isSameAs(STUB_NAMESPACE);
+                assertThat(registry.getPodsByName()).containsEntry("postgres", TestClassWithInitializedPod.postgres);
+            } finally {
+                extension.afterAll(contextFor(TestClassWithInitializedPod.class));
+            }
+
+            assertThat(TestClassWithInitializedPod.postgres.stopped).isTrue();
+            assertThat(TestClassWithInitializedPod.cluster.closed).isTrue();
+        }
     }
 
     @Nested

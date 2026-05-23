@@ -19,23 +19,21 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 /**
  * Integration tests for {@link MinikubeCluster}.
  *
  * <p>These tests drive real {@code minikit} / {@code minikube} / {@code docker} processes and are
- * tagged {@code integration-minikit} so the default {@code mvn test} skips them. Run them
- * explicitly with {@code mvn -Dgroups=integration-minikit test}.
+ * named with Maven Failsafe's {@code *IT} convention so the default {@code mvn test} skips them.
+ * Run them with {@code mvn verify}.
  *
  * <p>Each test owns its setup/teardown to keep the suite deterministic regardless of execution
  * order. Tests that need a known starting state shell out to {@code minikit} / {@code kubectl}
  * directly through {@link Shell} — this is allowed in test scope; the "no ProcessBuilder outside
  * MinikitCli" rule applies to production code in {@code cluster/}.
  */
-@Tag("integration-minikit")
-class MinikubeClusterTest {
+class MinikubeClusterIT {
 
   private static final String PROFILE = "testpods";
 
@@ -152,6 +150,7 @@ class MinikubeClusterTest {
       Namespace created = cluster.createNamespace(name);
       assertThat(created).isNotNull();
       assertThat(created.getName()).isEqualTo(name);
+      assertDashboardUrl(cluster);
       assertThat(cluster.getClient().namespaces().withName(name).get())
           .as("namespace should exist in cluster after createNamespace")
           .isNotNull();
@@ -334,7 +333,10 @@ class MinikubeClusterTest {
         .hasValueSatisfying(
             url -> {
               assertThat(url).startsWith("http://127.0.0.1:");
-              assertThat(url).contains("/api/v1/namespaces/kubernetes-dashboard/services/");
+              assertThat(url)
+                  .contains(
+                      "/api/v1/namespaces/kubernetes-dashboard/"
+                          + "services/kubernetes-dashboard/proxy/");
               assertThat(url).contains("#/workloads?namespace=" + namespace);
             });
   }

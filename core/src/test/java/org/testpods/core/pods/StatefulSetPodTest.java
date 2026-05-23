@@ -160,4 +160,30 @@ class StatefulSetPodTest {
     assertThat(pod.getExternalHost()).isEqualTo("minikube");
     assertThat(pod.getExternalPort()).isEqualTo(32000);
   }
+
+  @Test
+  void withFixedExposedPortShouldRecordContainerToHostMapping() {
+    TestStatefulSetPod pod = new TestStatefulSetPod().withFixedExposedPort(30432, 5432);
+
+    assertThat(pod.getFixedExposedPort(5432)).hasValue(30432);
+  }
+
+  @Test
+  void withExposedPortsShouldRejectInvalidPorts() {
+    TestStatefulSetPod pod = new TestStatefulSetPod();
+
+    assertThatThrownBy(() -> pod.withExposedPorts(0)).isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> pod.withExposedPorts(70000))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void withFixedExposedPortShouldRejectInvalidPorts() {
+    TestStatefulSetPod pod = new TestStatefulSetPod();
+
+    assertThatThrownBy(() -> pod.withFixedExposedPort(0, 5432))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(() -> pod.withFixedExposedPort(30432, 0))
+        .isInstanceOf(IllegalArgumentException.class);
+  }
 }

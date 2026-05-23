@@ -12,7 +12,7 @@ import org.testpods.core.cluster.Namespace;
 import org.testpods.core.cluster.MinikubeCluster;
 import org.testpods.core.wait.WaitStrategy;
 
-class GenericPodTest {
+class GenericPodIT {
 
   /**
    * Original verbose approach - explicit cluster and namespace. Still supported for full control.

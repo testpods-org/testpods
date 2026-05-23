@@ -88,11 +88,56 @@ public interface Pod<SELF extends Pod<SELF>> {
     int    getInternalPort();   // Original port
     String getExternalHost();   // For test code running outside cluster
     int    getExternalPort();   // Mapped port
+    String getHost();           // Testcontainers-style alias for external host
+    int    getMappedPort(int originalPort);
+
+    // Testcontainers-style port mapping
+    SELF withExposedPorts(Integer... ports);
+    SELF withFixedExposedPort(int hostPort, int containerPort);
 
     // Property publishing (for dependency injection)
     void publishProperties(PropertyContext ctx);
 }
 ```
+
+### Port Mapping Model
+
+TestPods follows the Testcontainers naming model while mapping it to Kubernetes networking:
+
+```java
+new PostgreSQLPod()
+    .withExposedPorts(5432);              // random or cluster-assigned external port
+
+new PostgreSQLPod()
+    .withFixedExposedPort(54320, 5432);   // request host/node port 54320 -> container 5432
+```
+
+Inside the cluster, other pods should normally use stable Kubernetes DNS and the original service
+port:
+
+```text
+other pod -> postgres.<namespace>.svc.cluster.local:5432
+```
+
+Outside the cluster, tests use the mapped endpoint:
+
+```text
+test JVM -> getHost():getMappedPort(5432) -> Kubernetes Service -> PostgreSQL container:5432
+```
+
+The fixed port meaning depends on the active `ExternalAccessStrategy`:
+
+```text
+PortForward:
+  127.0.0.1:<hostPort> -> Service:<containerPort> -> Pod:<containerPort>
+
+NodePort / Minikube service:
+  <node-ip>:<nodePort> -> Service:<containerPort> -> Pod:<containerPort>
+```
+
+For NodePort, Kubernetes only accepts ports inside the cluster's configured NodePort range. Many
+local clusters default to `30000-32767`, so `withFixedExposedPort(54320, 5432)` works naturally with
+port-forward access but may be rejected by a default NodePort service.
 
 ### Class hierarchy (implemented)
 

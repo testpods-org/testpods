@@ -4,17 +4,31 @@ import io.fabric8.kubernetes.api.model.ConfigMap;
 import io.fabric8.kubernetes.api.model.ConfigMapBuilder;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
+import io.fabric8.kubernetes.api.model.PersistentVolumeClaim;
+import io.fabric8.kubernetes.api.model.PersistentVolumeClaimBuilder;
 import io.fabric8.kubernetes.api.model.PodSpecBuilder;
+import io.fabric8.kubernetes.api.model.Quantity;
 import io.fabric8.kubernetes.api.model.VolumeBuilder;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.StringJoiner;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.pods.PodLifecycleHooks;
 import org.testpods.core.pods.StatefulSetPod;
+import org.testpods.core.service.CompositeServiceManager;
+import org.testpods.core.service.HeadlessServiceManager;
+import org.testpods.core.service.NodePortServiceManager;
+import org.testpods.core.service.ServiceManager;
 import org.testpods.core.wait.WaitStrategy;
+import org.testpods.core.workload.StatefulSetManager;
+import org.testpods.core.workload.WorkloadManager;
 
 /**
  * A PostgreSQL database pod for integration testing.
@@ -64,6 +78,7 @@ import org.testpods.core.wait.WaitStrategy;
  *
  * @see StatefulSetPod
  */
+@lombok.extern.slf4j.Slf4j
 public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodLifecycleHooks {
 
   // === Constants ===
@@ -73,16 +88,22 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
   public static final String DEFAULT_DATABASE = "test";
   public static final String DEFAULT_USERNAME = "test";
   public static final String DEFAULT_PASSWORD = "test";
+  public static final String DATA_VOLUME_NAME = "data";
+  public static final String DATA_MOUNT_PATH = "/var/lib/postgresql/data";
+  public static final String DEFAULT_STORAGE_SIZE = "1Gi";
 
   // === Configuration ===
 
   private String image = DEFAULT_IMAGE;
   private String databaseName = DEFAULT_DATABASE;
+  private final Set<String> additionalDatabases = new LinkedHashSet<>();
   private String username = DEFAULT_USERNAME;
   private String password = DEFAULT_PASSWORD;
   private final Map<String, String> urlParameters = new LinkedHashMap<>();
   private String initScriptPath;
   private String initScriptContent;
+  private boolean persistentData;
+  private String storageSize = DEFAULT_STORAGE_SIZE;
 
   // === Constructors ===
 
@@ -122,6 +143,49 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
    */
   public PostgreSQLPod withDatabase(String databaseName) {
     this.databaseName = databaseName;
+    this.additionalDatabases.remove(databaseName);
+    return this;
+  }
+
+  /**
+   * Set the primary database and additional databases to create during PostgreSQL initialization.
+   *
+   * <p>The first database is created by the official PostgreSQL image via {@code POSTGRES_DB}.
+   * Additional databases are created by a generated init SQL script.
+   *
+   * @param databaseName primary database name
+   * @param additionalDatabaseNames extra databases to create
+   * @return this pod for chaining
+   */
+  public PostgreSQLPod withDatabases(String databaseName, String... additionalDatabaseNames) {
+    this.databaseName = databaseName;
+    this.additionalDatabases.clear();
+    return withAdditionalDatabases(additionalDatabaseNames);
+  }
+
+  /**
+   * Add another database to create during PostgreSQL initialization.
+   *
+   * @param databaseName additional database name
+   * @return this pod for chaining
+   */
+  public PostgreSQLPod withAdditionalDatabase(String databaseName) {
+    if (!databaseName.equals(this.databaseName)) {
+      this.additionalDatabases.add(databaseName);
+    }
+    return this;
+  }
+
+  /**
+   * Add databases to create during PostgreSQL initialization.
+   *
+   * @param databaseNames additional database names
+   * @return this pod for chaining
+   */
+  public PostgreSQLPod withAdditionalDatabases(String... databaseNames) {
+    for (String databaseName : databaseNames) {
+      withAdditionalDatabase(databaseName);
+    }
     return this;
   }
 
@@ -183,6 +247,30 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
     return this;
   }
 
+  /** Enable persistent PostgreSQL data using a StatefulSet volumeClaimTemplate. */
+  public PostgreSQLPod withPersistentData() {
+    this.persistentData = true;
+    return this;
+  }
+
+  /**
+   * Enable persistent PostgreSQL data and request the given storage size.
+   *
+   * @param storageSize Kubernetes quantity, e.g. "512Mi", "1Gi", "10Gi"
+   * @return this pod for chaining
+   */
+  public PostgreSQLPod withPersistentData(String storageSize) {
+    this.persistentData = true;
+    this.storageSize = storageSize;
+    return this;
+  }
+
+  /** Disable persistent PostgreSQL data. Data will live only for the pod lifetime. */
+  public PostgreSQLPod withoutPersistentData() {
+    this.persistentData = false;
+    return this;
+  }
+
   // === Connection Information ===
 
   /**
@@ -191,6 +279,16 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
    * @return JDBC URL like "jdbc:postgresql://host:port/database"
    */
   public String getJdbcUrl() {
+    return getJdbcUrl(databaseName);
+  }
+
+  /**
+   * Get the JDBC connection URL for a specific database.
+   *
+   * @param databaseName database name
+   * @return JDBC URL like "jdbc:postgresql://host:port/database"
+   */
+  public String getJdbcUrl(String databaseName) {
     return "jdbc:postgresql://"
         + getExternalHost()
         + ":"
@@ -206,6 +304,16 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
    * @return JDBC URL using Kubernetes service DNS
    */
   public String getInternalJdbcUrl() {
+    return getInternalJdbcUrl(databaseName);
+  }
+
+  /**
+   * Get the internal JDBC URL for a specific database.
+   *
+   * @param databaseName database name
+   * @return JDBC URL using Kubernetes service DNS
+   */
+  public String getInternalJdbcUrl(String databaseName) {
     return "jdbc:postgresql://"
         + getInternalHost()
         + ":"
@@ -224,9 +332,61 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
     return "r2dbc:postgresql://" + getExternalHost() + ":" + getExternalPort() + "/" + databaseName;
   }
 
+  /**
+   * Get the R2DBC connection URL for a specific database.
+   *
+   * @param databaseName database name
+   * @return R2DBC URL like "r2dbc:postgresql://host:port/database"
+   */
+  public String getR2dbcUrl(String databaseName) {
+    return "r2dbc:postgresql://" + getExternalHost() + ":" + getExternalPort() + "/" + databaseName;
+  }
+
+  /**
+   * Get a standard PostgreSQL connection URI for external access.
+   *
+   * @return URI like "postgresql://user:password@host:port/database"
+   */
+  public String getPostgreSqlUri() {
+    return getPostgreSqlUri(databaseName);
+  }
+
+  /**
+   * Get a standard PostgreSQL connection URI for a specific database.
+   *
+   * @param databaseName database name
+   * @return URI like "postgresql://user:password@host:port/database"
+   */
+  public String getPostgreSqlUri(String databaseName) {
+    return "postgresql://"
+        + username
+        + ":"
+        + password
+        + "@"
+        + getExternalHost()
+        + ":"
+        + getExternalPort()
+        + "/"
+        + databaseName
+        + constructUrlParameters();
+  }
+
   /** Get the database name. */
   public String getDatabaseName() {
     return databaseName;
+  }
+
+  /** Get all databases configured for creation, with the primary database first. */
+  public List<String> getDatabaseNames() {
+    List<String> databases = new ArrayList<>();
+    databases.add(databaseName);
+    databases.addAll(additionalDatabases);
+    return Collections.unmodifiableList(databases);
+  }
+
+  /** Get additional databases configured beyond the primary database. */
+  public List<String> getAdditionalDatabaseNames() {
+    return List.copyOf(additionalDatabases);
   }
 
   /** Get the database username. */
@@ -242,6 +402,18 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
   /** Get the JDBC driver class name. */
   public String getDriverClassName() {
     return "org.postgresql.Driver";
+  }
+
+  public String getImage() {
+    return image;
+  }
+
+  public boolean isPersistentDataEnabled() {
+    return persistentData;
+  }
+
+  public String getStorageSize() {
+    return storageSize;
   }
 
   @Override
@@ -270,9 +442,11 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
     ctx.publish(prefix + ".uri", this::getJdbcUrl);
     ctx.publish(prefix + ".jdbcUrl", this::getJdbcUrl);
     ctx.publish(prefix + ".r2dbcUrl", this::getR2dbcUrl);
+    ctx.publish(prefix + ".postgresqlUri", this::getPostgreSqlUri);
     ctx.publish(prefix + ".username", this::getUsername);
     ctx.publish(prefix + ".password", this::getPassword);
     ctx.publish(prefix + ".database", this::getDatabaseName);
+    ctx.publish(prefix + ".databases", () -> String.join(",", getDatabaseNames()));
 
     // Internal (for other pods in cluster)
     ctx.publish(prefix + ".internal.host", this::getInternalHost);
@@ -317,6 +491,10 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
             .withName("POSTGRES_PASSWORD")
             .withValue(password)
             .endEnv()
+            .addNewEnv()
+            .withName("PGDATA")
+            .withValue(DATA_MOUNT_PATH + "/pgdata")
+            .endEnv()
             // Performance: disable fsync for tests
             .withArgs("-c", "fsync=off", "-c", "synchronous_commit=off")
             .withNewReadinessProbe()
@@ -335,6 +513,14 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
             .withPeriodSeconds(10)
             .withTimeoutSeconds(5)
             .endLivenessProbe();
+
+    if (persistentData) {
+      builder
+          .addNewVolumeMount()
+          .withName(DATA_VOLUME_NAME)
+          .withMountPath(DATA_MOUNT_PATH)
+          .endVolumeMount();
+    }
 
     // Add init scripts volume mount if configured
     if (hasInitScripts()) {
@@ -355,7 +541,34 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
    * @return true if either initScriptPath or initScriptContent is set
    */
   boolean hasInitScripts() {
-    return initScriptPath != null || initScriptContent != null;
+    return initScriptPath != null || initScriptContent != null || !additionalDatabases.isEmpty();
+  }
+
+  @Override
+  protected WorkloadManager createWorkloadManager() {
+    StatefulSetManager manager = new StatefulSetManager().withServiceName(name + "-headless");
+    if (persistentData) {
+      PersistentVolumeClaim pvc =
+          new PersistentVolumeClaimBuilder()
+              .withNewMetadata()
+              .withName(DATA_VOLUME_NAME)
+              .endMetadata()
+              .withNewSpec()
+              .withAccessModes("ReadWriteOnce")
+              .withNewResources()
+              .addToRequests("storage", new Quantity(storageSize))
+              .endResources()
+              .endSpec()
+              .build();
+      manager.withPvcTemplates(List.of(pvc));
+    }
+    return manager;
+  }
+
+  @Override
+  protected ServiceManager createServiceManager() {
+    return new CompositeServiceManager(new NodePortServiceManager(), new HeadlessServiceManager())
+        .withSuffixes("", "-headless");
   }
 
   @Override
@@ -388,6 +601,39 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
   }
 
   @Override
+  public void postStart() {
+    log.info("PostgreSQL TestPod '{}' is ready", name);
+    log.info("PostgreSQL image: {}", image);
+    log.info("PostgreSQL namespace: {}", namespace.getName());
+    log.info("PostgreSQL databases: {}", getDatabaseNames());
+    log.info("PostgreSQL username: {}", username);
+    log.info("PostgreSQL internal JDBC URL: {}", getInternalJdbcUrl());
+    log.info("PostgreSQL external JDBC URL: {}", getJdbcUrl());
+    log.info("PostgreSQL external URI: {}", getPostgreSqlUri());
+    log.info("PostgreSQL external host/port: {}:{}", getExternalHost(), getExternalPort());
+    log.info(
+        "PostgreSQL persistent data: {}{}",
+        persistentData ? "enabled" : "disabled",
+        persistentData ? " (" + storageSize + " PVC)" : "");
+  }
+
+  @Override
+  protected List<String> buildCustomDeploymentDetailLines() {
+    List<String> lines = new ArrayList<>();
+    lines.add("postgresql.databases: " + getDatabaseNames());
+    lines.add("postgresql.username: " + username);
+    lines.add("postgresql.jdbcUrl: " + getJdbcUrl());
+    lines.add("postgresql.uri: " + getPostgreSqlUri());
+    lines.add("postgresql.internalJdbcUrl: " + getInternalJdbcUrl());
+    lines.add("postgresql.persistentData: " + persistentData);
+    if (persistentData) {
+      lines.add("postgresql.storageSize: " + storageSize);
+      lines.add("postgresql.pgdata: " + DATA_MOUNT_PATH + "/pgdata");
+    }
+    return lines;
+  }
+
+  @Override
   public void preStop() {
     if (hasInitScripts()) {
       deleteInitScriptConfigMap();
@@ -401,10 +647,7 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
    * ConfigMap exists when the pod spec references it.
    */
   private void createInitScriptConfigMap() {
-    String sql = initScriptContent;
-    if (sql == null && initScriptPath != null) {
-      sql = loadClasspathResource(initScriptPath);
-    }
+    String sql = buildInitSql();
 
     if (sql == null) {
       return;
@@ -423,6 +666,43 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
             .build();
 
     client.configMaps().inNamespace(namespace.getName()).resource(configMap).create();
+  }
+
+  String buildInitSql() {
+    List<String> sections = new ArrayList<>();
+    String additionalDatabaseSql = buildAdditionalDatabaseInitSql();
+    if (!additionalDatabaseSql.isBlank()) {
+      sections.add(additionalDatabaseSql);
+    }
+
+    String userSql = initScriptContent;
+    if (userSql == null && initScriptPath != null) {
+      userSql = loadClasspathResource(initScriptPath);
+    }
+    if (userSql != null && !userSql.isBlank()) {
+      sections.add(userSql);
+    }
+
+    if (sections.isEmpty()) {
+      return null;
+    }
+    return String.join("\n\n", sections);
+  }
+
+  private String buildAdditionalDatabaseInitSql() {
+    if (additionalDatabases.isEmpty()) {
+      return "";
+    }
+
+    StringBuilder sql = new StringBuilder("-- Generated by TestPods: create additional databases\n");
+    for (String databaseName : additionalDatabases) {
+      sql.append("CREATE DATABASE ").append(quoteIdentifier(databaseName)).append(";\n");
+    }
+    return sql.toString();
+  }
+
+  private static String quoteIdentifier(String identifier) {
+    return "\"" + identifier.replace("\"", "\"\"") + "\"";
   }
 
   /**

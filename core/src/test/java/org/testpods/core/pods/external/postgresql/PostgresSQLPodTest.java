@@ -8,6 +8,9 @@ import io.fabric8.kubernetes.api.model.Volume;
 import io.fabric8.kubernetes.api.model.VolumeMount;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import org.testpods.core.cluster.HostAndPort;
+import org.testpods.core.cluster.Namespace;
+import org.testpods.core.pods.PodLifecycleHooks;
 
 /**
  * Unit tests for PostgreSQLPod.
@@ -51,6 +54,13 @@ class PostgresSQLPodTest {
   }
 
   @Test
+  void hasInitScriptsShouldReturnTrueWhenAdditionalDatabasesSet() {
+    PostgreSQLPod pod = new PostgreSQLPod().withAdditionalDatabases("orders", "inventory");
+
+    assertThat(pod.hasInitScripts()).isTrue();
+  }
+
+  @Test
   void constantsShouldHaveCorrectValues() {
     assertThat(PostgreSQLPod.INIT_SCRIPTS_VOLUME_NAME).isEqualTo("init-scripts");
     assertThat(PostgreSQLPod.INIT_SCRIPTS_MOUNT_PATH).isEqualTo("/docker-entrypoint-initdb.d");
@@ -72,6 +82,14 @@ class PostgresSQLPodTest {
 
     PodSpecBuilder applyPodCustomizationsForTest(PodSpecBuilder baseSpec) {
       return applyPodCustomizations(baseSpec);
+    }
+
+    void setExternalAccessForTest(String host, int port) {
+      this.externalAccess = new HostAndPort(host, port);
+    }
+
+    List<String> customDeploymentDetailLinesForTest() {
+      return buildCustomDeploymentDetailLines();
     }
   }
 
@@ -116,6 +134,18 @@ class PostgresSQLPodTest {
     assertThat(mount.getName()).isEqualTo("init-scripts");
     assertThat(mount.getMountPath()).isEqualTo("/docker-entrypoint-initdb.d");
     assertThat(mount.getReadOnly()).isTrue();
+  }
+
+  @Test
+  void buildMainContainerShouldIncludeVolumeMountWithAdditionalDatabases() {
+    TestablePostgreSQLPod pod =
+        (TestablePostgreSQLPod) new TestablePostgreSQLPod().withAdditionalDatabase("inventory");
+
+    Container container = pod.buildContainerForTest();
+
+    assertThat(container.getVolumeMounts())
+        .extracting(VolumeMount::getName)
+        .contains(PostgreSQLPod.INIT_SCRIPTS_VOLUME_NAME);
   }
 
   @Test
@@ -271,23 +301,123 @@ class PostgresSQLPodTest {
     assertThat(result).isSameAs(pod);
   }
 
+  @Test
+  void withDatabasesShouldSetPrimaryAndAdditionalDatabases() {
+    PostgreSQLPod pod = new PostgreSQLPod().withDatabases("orders", "inventory", "billing");
+
+    assertThat(pod.getDatabaseName()).isEqualTo("orders");
+    assertThat(pod.getDatabaseNames()).containsExactly("orders", "inventory", "billing");
+    assertThat(pod.getAdditionalDatabaseNames()).containsExactly("inventory", "billing");
+  }
+
+  @Test
+  void withAdditionalDatabasesShouldNotDuplicatePrimaryDatabase() {
+    PostgreSQLPod pod =
+        new PostgreSQLPod().withDatabase("orders").withAdditionalDatabases("orders", "inventory");
+
+    assertThat(pod.getDatabaseNames()).containsExactly("orders", "inventory");
+  }
+
+  @Test
+  void buildInitSqlShouldCreateAdditionalDatabasesBeforeUserSql() {
+    PostgreSQLPod pod =
+        new PostgreSQLPod()
+            .withDatabases("orders", "inventory", "billing-db")
+            .withInitSql("CREATE TABLE orders_table (id INT);");
+
+    String sql = pod.buildInitSql();
+
+    assertThat(sql)
+        .contains("CREATE DATABASE \"inventory\";")
+        .contains("CREATE DATABASE \"billing-db\";")
+        .contains("CREATE TABLE orders_table (id INT);");
+    assertThat(sql.indexOf("CREATE DATABASE \"inventory\";"))
+        .isLessThan(sql.indexOf("CREATE TABLE orders_table (id INT);"));
+  }
+
+  @Test
+  void buildInitSqlShouldEscapeDatabaseIdentifiers() {
+    PostgreSQLPod pod = new PostgreSQLPod().withAdditionalDatabase("team\"db");
+
+    assertThat(pod.buildInitSql()).contains("CREATE DATABASE \"team\"\"db\";");
+  }
+
+  @Test
+  void buildInitSqlShouldReturnNullWithoutAdditionalDatabasesOrUserSql() {
+    PostgreSQLPod pod = new PostgreSQLPod();
+
+    assertThat(pod.buildInitSql()).isNull();
+  }
+
+  @Test
+  void getJdbcUrlShouldSupportSpecificDatabaseNames() {
+    TestablePostgreSQLPod pod =
+        (TestablePostgreSQLPod)
+            new TestablePostgreSQLPod()
+                .withDatabases("orders", "inventory")
+                .withUrlParam("sslmode", "disable");
+    pod.setExternalAccessForTest("127.0.0.1", 30432);
+
+    assertThat(pod.getJdbcUrl()).isEqualTo("jdbc:postgresql://127.0.0.1:30432/orders?sslmode=disable");
+    assertThat(pod.getJdbcUrl("inventory"))
+        .isEqualTo("jdbc:postgresql://127.0.0.1:30432/inventory?sslmode=disable");
+  }
+
+  @Test
+  void getPostgreSqlUriShouldSupportSpecificDatabaseNames() {
+    TestablePostgreSQLPod pod =
+        (TestablePostgreSQLPod)
+            new TestablePostgreSQLPod()
+                .withDatabases("orders", "inventory")
+                .withUsername("app_user")
+                .withPassword("app_pass")
+                .withUrlParam("sslmode", "disable");
+    pod.setExternalAccessForTest("127.0.0.1", 30432);
+
+    assertThat(pod.getPostgreSqlUri())
+        .isEqualTo("postgresql://app_user:app_pass@127.0.0.1:30432/orders?sslmode=disable");
+    assertThat(pod.getPostgreSqlUri("inventory"))
+        .isEqualTo("postgresql://app_user:app_pass@127.0.0.1:30432/inventory?sslmode=disable");
+  }
+
+  @Test
+  void customDeploymentDetailsShouldIncludePostgreSQLConnectionDetails() {
+    TestablePostgreSQLPod pod =
+        (TestablePostgreSQLPod)
+            new TestablePostgreSQLPod()
+                .withDatabases("orders", "inventory")
+                .withUsername("app_user")
+                .withPassword("app_pass")
+                .withPersistentData("2Gi");
+    pod.setExternalAccessForTest("127.0.0.1", 30432);
+    pod.inNamespace(Namespace.external("test-ns", null));
+
+    assertThat(pod.customDeploymentDetailLinesForTest())
+        .contains(
+            "postgresql.databases: [orders, inventory]",
+            "postgresql.username: app_user",
+            "postgresql.jdbcUrl: jdbc:postgresql://127.0.0.1:30432/orders",
+            "postgresql.uri: postgresql://app_user:app_pass@127.0.0.1:30432/orders",
+            "postgresql.internalJdbcUrl: jdbc:postgresql://postgres.test-ns.svc.cluster.local:5432/orders",
+            "postgresql.persistentData: true",
+            "postgresql.storageSize: 2Gi",
+            "postgresql.pgdata: /var/lib/postgresql/data/pgdata");
+  }
+
   // =============================================================
   // Start method tests (Step 3 - ConfigMap creation order)
   // =============================================================
 
   @Test
-  void startMethodShouldBeOverriddenInPostgreSQLPod() throws NoSuchMethodException {
-    // Verify that PostgreSQLPod overrides start() from StatefulSetPod
-    // This ensures ConfigMap is created before StatefulSet
-    var method = PostgreSQLPod.class.getDeclaredMethod("start");
-    assertThat(method.getDeclaringClass()).isEqualTo(PostgreSQLPod.class);
+  void postgreSQLPodShouldUseLifecycleHooksForInitScripts() {
+    assertThat(PodLifecycleHooks.class).isAssignableFrom(PostgreSQLPod.class);
   }
 
   @Test
-  void stopMethodShouldBeOverriddenInPostgreSQLPod() throws NoSuchMethodException {
-    // Verify that PostgreSQLPod overrides stop() for ConfigMap cleanup
-    var method = PostgreSQLPod.class.getDeclaredMethod("stop");
-    assertThat(method.getDeclaringClass()).isEqualTo(PostgreSQLPod.class);
+  void persistentDataShouldBeDisabledByDefault() {
+    PostgreSQLPod pod = new PostgreSQLPod();
+
+    assertThat(pod.isPersistentDataEnabled()).isFalse();
   }
 
   @Test
@@ -336,5 +466,25 @@ class PostgresSQLPodTest {
     assertThat(container.getEnv())
         .extracting("name")
         .contains("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD");
+  }
+
+  @Test
+  void withPersistentDataShouldMountPostgreSQLDataVolume() {
+    TestablePostgreSQLPod pod =
+        (TestablePostgreSQLPod) new TestablePostgreSQLPod().withPersistentData("2Gi");
+
+    Container container = pod.buildContainerForTest();
+
+    assertThat(pod.isPersistentDataEnabled()).isTrue();
+    assertThat(pod.getStorageSize()).isEqualTo("2Gi");
+    assertThat(container.getVolumeMounts())
+        .extracting(VolumeMount::getName)
+        .contains(PostgreSQLPod.DATA_VOLUME_NAME);
+    assertThat(container.getEnv())
+        .anySatisfy(
+            env -> {
+              assertThat(env.getName()).isEqualTo("PGDATA");
+              assertThat(env.getValue()).isEqualTo("/var/lib/postgresql/data/pgdata");
+            });
   }
 }

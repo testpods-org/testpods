@@ -8,13 +8,18 @@ import io.fabric8.kubernetes.client.dsl.PodResource;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
+import lombok.extern.slf4j.Slf4j;
 import org.testpods.core.ExecResult;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.TestPodStartException;
@@ -55,6 +60,7 @@ import org.testpods.core.workload.WorkloadManager;
  *
  * @param <SELF> The concrete type for fluent method chaining
  */
+@Slf4j
 public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implements Pod<SELF> {
 
   // =============================================================
@@ -70,6 +76,10 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
   protected String cpuRequest;
   protected String memoryRequest;
   protected WaitStrategy waitStrategy;
+  protected final Set<Integer> exposedPorts = new LinkedHashSet<>();
+  protected final Map<Integer, Integer> fixedExposedPorts = new LinkedHashMap<>();
+  protected final Map<Integer, org.testpods.core.cluster.HostAndPort> mappedPorts =
+      new ConcurrentHashMap<>();
 
   // Lazy initialization support - these are used when namespace is not explicitly set
 //  protected K8sCluster cluster;
@@ -177,6 +187,31 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
   @Override
   public SELF waitingFor(WaitStrategy strategy) {
     this.waitStrategy = strategy;
+    return self();
+  }
+
+  @Override
+  public SELF withExposedPorts(Integer... ports) {
+    for (Integer port : ports) {
+      if (port == null || port <= 0 || port > 65535) {
+        throw new IllegalArgumentException("port must be between 1 and 65535: " + port);
+      }
+      exposedPorts.add(port);
+    }
+    return self();
+  }
+
+  @Override
+  public SELF withFixedExposedPort(int hostPort, int containerPort) {
+    if (hostPort <= 0 || hostPort > 65535) {
+      throw new IllegalArgumentException("hostPort must be between 1 and 65535: " + hostPort);
+    }
+    if (containerPort <= 0 || containerPort > 65535) {
+      throw new IllegalArgumentException(
+          "containerPort must be between 1 and 65535: " + containerPort);
+    }
+    exposedPorts.add(containerPort);
+    fixedExposedPorts.put(containerPort, hostPort);
     return self();
   }
 
@@ -303,6 +338,31 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
     return cluster;
   }
 
+  @Override
+  public String getHost() {
+    return getExternalHost();
+  }
+
+  @Override
+  public int getMappedPort(int originalPort) {
+    return getExternalEndpoint(originalPort).port();
+  }
+
+  @Override
+  public OptionalInt getFixedExposedPort(int containerPort) {
+    Integer fixedPort = fixedExposedPorts.get(containerPort);
+    return fixedPort != null ? OptionalInt.of(fixedPort) : OptionalInt.empty();
+  }
+
+  protected org.testpods.core.cluster.HostAndPort getExternalEndpoint(int internalPort) {
+    if (cluster == null || namespace == null) {
+      throw new IllegalStateException(
+          "Pod " + name + " is not started; external endpoint is unavailable");
+    }
+    return mappedPorts.computeIfAbsent(
+        internalPort, port -> cluster.getAccessStrategy().getExternalEndpoint(this, port));
+  }
+
   /**
    * Get the PodResource for this test pod.
    *
@@ -390,9 +450,11 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
 
   /** Wait for the pod to be ready according to the configured strategy. */
   protected void waitForReady() {
-    WaitStrategy strategy =
-        this.waitStrategy != null ? this.waitStrategy : getDefaultWaitStrategy();
-    strategy.waitUntilReady(this);
+    getActiveWaitStrategy().waitUntilReady(this);
+  }
+
+  protected WaitStrategy getActiveWaitStrategy() {
+    return this.waitStrategy != null ? this.waitStrategy : getDefaultWaitStrategy();
   }
 
   /**
@@ -400,6 +462,16 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
    * defaults.
    */
   protected abstract WaitStrategy getDefaultWaitStrategy();
+
+  /**
+   * Build pod-specific deployment details for debug logging.
+   *
+   * <p>Domain pods can override this to append connection strings, broker addresses, database
+   * names, credentials metadata, or other developer-facing runtime details.
+   */
+  protected List<String> buildCustomDeploymentDetailLines() {
+    return List.of();
+  }
 
   /** Build standard labels for this pod. Includes "app" label and any user-specified labels. */
   protected Map<String, String> buildLabels() {
@@ -415,6 +487,234 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
     return env.entrySet().stream()
         .map(e -> new EnvVarBuilder().withName(e.getKey()).withValue(e.getValue()).build())
         .toList();
+  }
+
+  /** Log detailed Kubernetes deployment information for this pod at debug level. */
+  protected void logDeploymentDetails() {
+    if (!log.isDebugEnabled()) {
+      return;
+    }
+
+    try {
+      log.debug("TestPod deployment details for '{}':\n{}", name, buildDeploymentDetailsReport());
+    } catch (Exception e) {
+      log.debug("Could not build deployment details for '{}': {}", name, e.getMessage(), e);
+    }
+  }
+
+  String buildDeploymentDetailsReport() {
+    List<String> lines = new ArrayList<>();
+    lines.add("Pod");
+    lines.add("  name: " + name);
+    lines.add("  namespace: " + namespace.getName());
+    lines.add("  workload: " + workload.getWorkloadType() + "/" + workload.getName());
+    lines.add("  ready: " + isReady());
+    lines.add("  running: " + isRunning());
+    lines.add("  waitStrategy: " + getActiveWaitStrategy().getClass().getName());
+    lines.add("  internal: " + getInternalHost() + ":" + getInternalPort());
+    try {
+      lines.add("  external: " + getExternalHost() + ":" + getExternalPort());
+    } catch (Exception e) {
+      lines.add("  external: unavailable (" + e.getMessage() + ")");
+    }
+
+    appendServices(lines);
+    appendPods(lines);
+    appendConfigMaps(lines);
+    appendPersistentVolumeClaims(lines);
+
+    List<String> customLines = buildCustomDeploymentDetailLines();
+    if (!customLines.isEmpty()) {
+      lines.add("Custom");
+      for (String line : customLines) {
+        lines.add("  " + line);
+      }
+    }
+
+    return String.join(System.lineSeparator(), lines);
+  }
+
+  private void appendServices(List<String> lines) {
+    var services =
+        getClient()
+            .services()
+            .inNamespace(namespace.getName())
+            .withLabel("app", name)
+            .list()
+            .getItems();
+    lines.add("Services");
+    if (services.isEmpty()) {
+      lines.add("  none");
+      return;
+    }
+    for (Service service : services) {
+      var spec = service.getSpec();
+      lines.add("  " + service.getMetadata().getName());
+      lines.add("    type: " + nullSafe(spec.getType()));
+      lines.add("    clusterIP: " + nullSafe(spec.getClusterIP()));
+      lines.add("    selector: " + nullSafe(spec.getSelector()));
+      if (spec.getPorts() != null) {
+        for (ServicePort port : spec.getPorts()) {
+          lines.add(
+              "    port: "
+                  + nullSafe(port.getName())
+                  + " "
+                  + port.getPort()
+                  + " -> "
+                  + port.getTargetPort()
+                  + (port.getNodePort() != null ? " nodePort=" + port.getNodePort() : ""));
+        }
+      }
+    }
+  }
+
+  private void appendPods(List<String> lines) {
+    var pods =
+        getClient().pods().inNamespace(namespace.getName()).withLabel("app", name).list().getItems();
+    lines.add("Runtime Pods");
+    if (pods.isEmpty()) {
+      lines.add("  none");
+      return;
+    }
+
+    for (io.fabric8.kubernetes.api.model.Pod pod : pods) {
+      lines.add("  " + pod.getMetadata().getName());
+      if (pod.getStatus() != null) {
+        lines.add("    phase: " + nullSafe(pod.getStatus().getPhase()));
+        lines.add("    podIP: " + nullSafe(pod.getStatus().getPodIP()));
+      }
+      if (pod.getSpec() != null) {
+        lines.add("    nodeName: " + nullSafe(pod.getSpec().getNodeName()));
+        if (pod.getSpec().getContainers() != null) {
+          for (Container container : pod.getSpec().getContainers()) {
+            appendContainer(lines, container);
+          }
+        }
+      }
+    }
+  }
+
+  private void appendContainer(List<String> lines, Container container) {
+    lines.add("    container: " + container.getName());
+    lines.add("      image: " + container.getImage());
+    if (container.getPorts() != null && !container.getPorts().isEmpty()) {
+      List<String> ports = new ArrayList<>();
+      for (ContainerPort port : container.getPorts()) {
+        ports.add(nullSafe(port.getName()) + ":" + port.getContainerPort());
+      }
+      lines.add("      ports: " + ports);
+    }
+    if (container.getEnv() != null && !container.getEnv().isEmpty()) {
+      List<String> env = new ArrayList<>();
+      for (EnvVar envVar : container.getEnv()) {
+        env.add(envVar.getName() + "=" + maskEnvValue(envVar.getName(), envVar.getValue()));
+      }
+      lines.add("      env: " + env);
+    }
+    if (container.getVolumeMounts() != null && !container.getVolumeMounts().isEmpty()) {
+      List<String> mounts = new ArrayList<>();
+      for (VolumeMount mount : container.getVolumeMounts()) {
+        mounts.add(mount.getName() + ":" + mount.getMountPath());
+      }
+      lines.add("      volumeMounts: " + mounts);
+    }
+  }
+
+  private void appendConfigMaps(List<String> lines) {
+    var configMaps =
+        getClient()
+            .configMaps()
+            .inNamespace(namespace.getName())
+            .withLabel("app", name)
+            .list()
+            .getItems();
+    lines.add("ConfigMaps");
+    if (configMaps.isEmpty()) {
+      lines.add("  none");
+      return;
+    }
+    for (ConfigMap configMap : configMaps) {
+      lines.add("  " + configMap.getMetadata().getName());
+      lines.add(
+          "    keys: "
+              + (configMap.getData() != null ? configMap.getData().keySet() : Set.of()));
+    }
+  }
+
+  private void appendPersistentVolumeClaims(List<String> lines) {
+    Set<String> claimNames = collectMountedPersistentVolumeClaimNames();
+    lines.add("PersistentVolumeClaims");
+    if (claimNames.isEmpty()) {
+      lines.add("  none");
+      return;
+    }
+
+    for (String claimName : claimNames) {
+      var pvc =
+          getClient()
+              .persistentVolumeClaims()
+              .inNamespace(namespace.getName())
+              .withName(claimName)
+              .get();
+      if (pvc == null) {
+        lines.add("  " + claimName + " (not found)");
+        continue;
+      }
+      lines.add("  " + claimName);
+      if (pvc.getStatus() != null) {
+        lines.add("    phase: " + nullSafe(pvc.getStatus().getPhase()));
+        lines.add("    capacity: " + nullSafe(pvc.getStatus().getCapacity()));
+      }
+      if (pvc.getSpec() != null) {
+        lines.add("    storageClassName: " + nullSafe(pvc.getSpec().getStorageClassName()));
+        lines.add("    volumeName: " + nullSafe(pvc.getSpec().getVolumeName()));
+        lines.add("    accessModes: " + nullSafe(pvc.getSpec().getAccessModes()));
+        if (pvc.getSpec().getResources() != null
+            && pvc.getSpec().getResources().getRequests() != null) {
+          lines.add("    requests: " + pvc.getSpec().getResources().getRequests());
+        }
+      }
+    }
+  }
+
+  private Set<String> collectMountedPersistentVolumeClaimNames() {
+    Set<String> claimNames = new LinkedHashSet<>();
+    var pods =
+        getClient().pods().inNamespace(namespace.getName()).withLabel("app", name).list().getItems();
+    for (io.fabric8.kubernetes.api.model.Pod pod : pods) {
+      if (pod.getSpec() == null || pod.getSpec().getVolumes() == null) {
+        continue;
+      }
+      for (Volume volume : pod.getSpec().getVolumes()) {
+        if (volume.getPersistentVolumeClaim() != null) {
+          claimNames.add(volume.getPersistentVolumeClaim().getClaimName());
+        }
+      }
+    }
+    return claimNames;
+  }
+
+  private static String maskEnvValue(String name, String value) {
+    if (value == null) {
+      return "";
+    }
+    String upperName = name.toUpperCase(java.util.Locale.ROOT);
+    if (upperName.contains("PASSWORD")
+        || upperName.contains("SECRET")
+        || upperName.contains("TOKEN")
+        || upperName.contains("KEY")) {
+      return "****";
+    }
+    return value;
+  }
+
+  private static String nullSafe(Object value) {
+    return value == null ? "<none>" : String.valueOf(value);
+  }
+
+  private Integer getConfiguredFixedPortOrNull(int containerPort) {
+    OptionalInt fixedPort = getFixedExposedPort(containerPort);
+    return fixedPort.isPresent() ? fixedPort.getAsInt() : null;
   }
 
   // =============================================================
@@ -445,6 +745,9 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
    * and service via their strategies. Hooks are invoked around this call by {@link #start()}.
    */
   protected final void doStart() {
+    resolveRuntimeDefaults();
+    exposedPorts.add(getInternalPort());
+
     if (workload == null) {
       workload = createWorkloadManager();
     }
@@ -473,13 +776,17 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
               .name(name)
               .namespace(ns)
               .port(getInternalPort())
+              .ports(exposedPorts)
               .labels(buildLabels())
               .selector(java.util.Map.of("app", name))
+              .nodePort(getConfiguredFixedPortOrNull(getInternalPort()))
+              .nodePorts(fixedExposedPorts)
               .client(client)
               .build();
       serviceMgr.create(svc);
 
       waitForReady();
+      logDeploymentDetails();
     } catch (Exception e) {
       cleanup();
       throw new TestPodStartException(name, e.getMessage(), e);
@@ -491,6 +798,13 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
    * {@link PodLifecycleHooks#preStop()} is invoked before this call by {@link #stop()}.
    */
   protected final void doStop() {
+    if (cluster != null) {
+      try {
+        cluster.getAccessStrategy().cleanup(this);
+      } catch (Exception ignored) {
+      }
+    }
+    mappedPorts.clear();
     if (serviceMgr != null) {
       try {
         serviceMgr.delete();
@@ -505,7 +819,45 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
     }
   }
 
+  private void resolveRuntimeDefaults() {
+    if (cluster == null) {
+      cluster = TestPodDefaults.resolveCluster();
+    }
+    if (namespace != null) {
+      return;
+    }
+
+    if (explicitNamespaceName != null && !explicitNamespaceName.isBlank()) {
+      Namespace existing = cluster.getNamespace(explicitNamespaceName);
+      if (existing != null) {
+        namespace = existing;
+        return;
+      }
+      try {
+        namespace = cluster.createNamespace(explicitNamespaceName);
+      } catch (RuntimeException e) {
+        namespace = cluster.attachNamespace(explicitNamespaceName);
+      }
+      return;
+    }
+
+    Namespace sharedNamespace = TestPodDefaults.getSharedNamespace();
+    if (sharedNamespace != null) {
+      namespace = sharedNamespace;
+      return;
+    }
+
+    namespace = cluster.getDefaultNamespace();
+    if (namespace == null) {
+      namespace = cluster.createNamespace();
+    }
+  }
+
   private void cleanup() {
+    try {
+      if (cluster != null) cluster.getAccessStrategy().cleanup(this);
+    } catch (Exception ignored) {
+    }
     try {
       if (serviceMgr != null) serviceMgr.delete();
     } catch (Exception ignored) {

@@ -107,7 +107,7 @@ class PortForwardAccessStrategy implements ExternalAccessStrategy {
         key,
         k -> {
           try {
-            int localPort = findAvailablePort();
+            int localPort = pod.getFixedExposedPort(internalPort).orElseGet(this::findAvailablePort);
 
             KubernetesClient client = pod.getCluster().getClient();
 

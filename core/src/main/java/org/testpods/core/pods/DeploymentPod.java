@@ -5,7 +5,6 @@ import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.UnaryOperator;
-import org.testpods.core.cluster.HostAndPort;
 import org.testpods.core.service.ClusterIPServiceManager;
 import org.testpods.core.service.ServiceManager;
 import org.testpods.core.wait.WaitStrategy;
@@ -48,14 +47,12 @@ public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends Ba
 
   @Override
   public String getExternalHost() {
-    HostAndPort endpoint = cluster.getAccessStrategy().getExternalEndpoint(this, getInternalPort());
-    return endpoint.host();
+    return getExternalEndpoint(getInternalPort()).host();
   }
 
   @Override
   public int getExternalPort() {
-    HostAndPort endpoint = cluster.getAccessStrategy().getExternalEndpoint(this, getInternalPort());
-    return endpoint.port();
+    return getExternalEndpoint(getInternalPort()).port();
   }
 
   @Override

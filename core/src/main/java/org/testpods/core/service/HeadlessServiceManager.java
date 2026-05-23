@@ -1,6 +1,5 @@
 package org.testpods.core.service;
 
-import io.fabric8.kubernetes.api.model.IntOrString;
 import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.ServiceBuilder;
 import java.util.function.UnaryOperator;
@@ -42,12 +41,9 @@ public class HeadlessServiceManager implements ServiceManager {
             .withNewSpec()
             .withSelector(config.selector())
             .withClusterIP("None") // Headless service
-            .addNewPort()
-            .withName("primary")
-            .withPort(config.port())
-            .withTargetPort(new IntOrString(config.port()))
-            .endPort()
             .endSpec();
+
+    ClusterIPServiceManager.addServicePorts(builder, config);
 
     // Apply customizers
     for (UnaryOperator<ServiceBuilder> customizer : config.customizers()) {

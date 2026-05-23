@@ -56,6 +56,7 @@ public class TestPodsExtension
         // start the cluster and ensure namespace is running.
         provisioner.ensureClusterIsReady();
         provisioner.ensureNamespaceIsActive();
+        provisioner.provisionTestPods();
 
         // initialize the test pods
         // inject cluster into the test pods
@@ -280,6 +281,9 @@ public class TestPodsExtension
     @Override
     public void afterAll(ExtensionContext extensionContext) throws Exception {
         registry.tearDown();
+        if (registry.getCluster() != null) {
+            registry.getCluster().close();
+        }
         // Clear thread-local state to prevent memory leaks in thread pool executors
         TestPodDefaults.clear();
     }

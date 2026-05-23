@@ -71,7 +71,7 @@ public abstract class StatefulSetPod<SELF extends StatefulSetPod<SELF>> extends 
   @Override
   public String getExternalHost() {
     if (externalAccess == null) {
-      externalAccess = cluster.getAccessStrategy().getExternalEndpoint(this, getInternalPort());
+      externalAccess = getExternalEndpoint(getInternalPort());
     }
     return externalAccess.host();
   }
@@ -79,7 +79,7 @@ public abstract class StatefulSetPod<SELF extends StatefulSetPod<SELF>> extends 
   @Override
   public int getExternalPort() {
     if (externalAccess == null) {
-      externalAccess = cluster.getAccessStrategy().getExternalEndpoint(this, getInternalPort());
+      externalAccess = getExternalEndpoint(getInternalPort());
     }
     return externalAccess.port();
   }

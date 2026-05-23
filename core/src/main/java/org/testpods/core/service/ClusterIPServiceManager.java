@@ -42,12 +42,9 @@ public class ClusterIPServiceManager implements ServiceManager {
             .withNewSpec()
             .withSelector(config.selector())
             .withType("ClusterIP")
-            .addNewPort()
-            .withName("primary")
-            .withPort(config.port())
-            .withTargetPort(new IntOrString(config.port()))
-            .endPort()
             .endSpec();
+
+    addServicePorts(builder, config);
 
     // Apply customizers
     for (UnaryOperator<ServiceBuilder> customizer : config.customizers()) {
@@ -88,5 +85,18 @@ public class ClusterIPServiceManager implements ServiceManager {
   @Override
   public String getServiceType() {
     return "ClusterIP";
+  }
+
+  static void addServicePorts(ServiceBuilder builder, ServiceConfig config) {
+    for (Integer port : config.ports()) {
+      builder
+          .editSpec()
+          .addNewPort()
+          .withName(port.equals(config.port()) ? "primary" : "port-" + port)
+          .withPort(port)
+          .withTargetPort(new IntOrString(port))
+          .endPort()
+          .endSpec();
+    }
   }
 }

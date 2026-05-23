@@ -262,7 +262,7 @@ final class MinikitCli {
    * <p>The returned URL is the Kubernetes API service proxy path for the minikube dashboard.
    * Closing the handle terminates the local proxy process.
    */
-  DashboardProxy startDashboardProxy(String profileName, String namespaceName) {
+  DashboardProxy startDashboardProxy(String profileName) {
     int port = findAvailableLocalPort();
     List<String> argv =
         Arrays.asList(
@@ -304,9 +304,7 @@ final class MinikitCli {
     String url =
         "http://127.0.0.1:"
             + port
-            + "/api/v1/namespaces/kubernetes-dashboard/services/http:kubernetes-dashboard:/proxy/"
-            + "#/workloads?namespace="
-            + namespaceName;
+            + "/api/v1/namespaces/kubernetes-dashboard/services/kubernetes-dashboard/proxy/";
     return new DashboardProxy(process, output, url);
   }
 
@@ -452,7 +450,7 @@ final class MinikitCli {
       this.url = url;
     }
 
-    String url() {
+    String baseUrl() {
       return url;
     }
 

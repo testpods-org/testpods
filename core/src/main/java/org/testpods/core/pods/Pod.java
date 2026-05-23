@@ -3,6 +3,7 @@ package org.testpods.core.pods;
 import io.fabric8.kubernetes.api.model.PodSpecBuilder;
 import java.time.Duration;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import org.testpods.core.ExecResult;
@@ -142,6 +143,30 @@ public interface Pod<SELF extends Pod<SELF>> {
   SELF waitingFor(WaitStrategy strategy);
 
   // =============================================================
+  // Port mapping
+  // =============================================================
+
+  /**
+   * Expose container ports for external access.
+   *
+   * <p>Follows Testcontainers naming: exposed container ports receive an externally reachable
+   * mapped port from the configured cluster access strategy.
+   */
+  default SELF withExposedPorts(Integer... ports) {
+    throw new UnsupportedOperationException();
+  }
+
+  /**
+   * Request a fixed externally reachable port for a container port.
+   *
+   * <p>For port-forward access this is a local host port. For NodePort access this requests a
+   * Kubernetes nodePort, which must be inside the cluster's configured NodePort range.
+   */
+  default SELF withFixedExposedPort(int hostPort, int containerPort) {
+    throw new UnsupportedOperationException();
+  }
+
+  // =============================================================
   // Lifecycle
   // =============================================================
 
@@ -214,6 +239,28 @@ public interface Pod<SELF extends Pod<SELF>> {
 
   /** Get the external port for test code to connect. */
   int getExternalPort();
+
+  /** Testcontainers-style alias for {@link #getExternalHost()}. */
+  default String getHost() {
+    return getExternalHost();
+  }
+
+  /** Get the externally mapped port for a container port. */
+  default int getMappedPort(int originalPort) {
+    if (originalPort == getInternalPort()) {
+      return getExternalPort();
+    }
+    throw new UnsupportedOperationException();
+  }
+
+  /**
+   * Get the configured fixed external port for a container port, if any.
+   *
+   * <p>This is primarily used by cluster access strategies and service managers.
+   */
+  default OptionalInt getFixedExposedPort(int containerPort) {
+    return OptionalInt.empty();
+  }
 
   // =============================================================
   // Property publishing

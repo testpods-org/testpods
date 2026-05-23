@@ -39,6 +39,11 @@ public class MinikubeCluster implements K8sCluster, Closeable {
    */
   private static final Duration UP_TIMEOUT = Duration.ofMinutes(3);
 
+  private static final String DASHBOARD_NAMESPACE = "kubernetes-dashboard";
+  private static final String DASHBOARD_SERVICE = "kubernetes-dashboard";
+  private static final Duration DASHBOARD_WAIT_TIMEOUT = Duration.ofMinutes(1);
+  private static final Duration DASHBOARD_WAIT_INTERVAL = Duration.ofSeconds(1);
+
   /**
    * Per-profile mutex serialising concurrent {@code MinikubeCluster} construction within this JVM.
    * The real {@code minikit up} command rejects concurrent invocations on the same workspace, so
@@ -55,7 +60,7 @@ public class MinikubeCluster implements K8sCluster, Closeable {
   private final KubernetesClient client;
   private final Map<String, Namespace> namespaces;
   private final ExternalAccessStrategy accessStrategy;
-  private final Optional<MinikitCli.DashboardProxy> dashboardProxy;
+  private Optional<MinikitCli.DashboardProxy> dashboardProxy = Optional.empty();
   private Namespace defaultNamespace;
 
   private MinikubeCluster(String profileName, ProfileLifecyclePolicy policy, MinikitCli cli) {
@@ -196,6 +201,12 @@ public class MinikubeCluster implements K8sCluster, Closeable {
       throw new ClusterException(kce);
     }
     namespaces.remove(name);
+    if (defaultNamespace != null && name.equals(defaultNamespace.getName())) {
+      defaultNamespace = namespaces.values().stream().findFirst().orElse(null);
+      if (defaultNamespace != null) {
+        logDashboardUrlForNamespace(defaultNamespace.getName());
+      }
+    }
   }
 
   private Namespace createNamespaceInCluster(Optional<String> optionalName) {
@@ -215,6 +226,7 @@ public class MinikubeCluster implements K8sCluster, Closeable {
       Namespace namespace = Namespace.owned(name, clusterNamespace);
       namespaces.put(name, namespace);
       defaultNamespace = namespace;
+      logDashboardUrlForNamespace(name);
       return namespace;
     } catch (KubernetesClientException kce) {
       throw new ClusterException(kce);
@@ -257,7 +269,10 @@ public class MinikubeCluster implements K8sCluster, Closeable {
 
   /** Returns the local dashboard URL when TestPods was able to start a dashboard proxy. */
   public Optional<String> getDashboardUrl() {
-    return dashboardProxy.map(MinikitCli.DashboardProxy::url);
+    if (defaultNamespace == null) {
+      return Optional.empty();
+    }
+    return dashboardProxy.map(proxy -> dashboardUrlForNamespace(proxy, defaultNamespace.getName()));
   }
 
   @Override
@@ -315,12 +330,14 @@ public class MinikubeCluster implements K8sCluster, Closeable {
       String profileName, String namespaceName) {
     try {
       cli.enableDashboardAddon(profileName);
-      MinikitCli.DashboardProxy proxy = cli.startDashboardProxy(profileName, namespaceName);
+      waitForDashboardEndpoint();
+      MinikitCli.DashboardProxy proxy = cli.startDashboardProxy(profileName);
+      String url = dashboardUrlForNamespace(proxy, namespaceName);
       log.info(
           "Minikube dashboard for profile {} namespace {}: {}",
           profileName,
           namespaceName,
-          proxy.url());
+          url);
       return Optional.of(proxy);
     } catch (ClusterException e) {
       log.warn(
@@ -329,6 +346,67 @@ public class MinikubeCluster implements K8sCluster, Closeable {
           e.getMessage());
       return Optional.empty();
     }
+  }
+
+  private void logDashboardUrlForNamespace(String namespaceName) {
+    dashboardProxy.ifPresent(
+        proxy ->
+            log.info(
+                "Minikube dashboard for profile {} namespace {}: {}",
+                profileName,
+                namespaceName,
+                dashboardUrlForNamespace(proxy, namespaceName)));
+  }
+
+  private static String dashboardUrlForNamespace(
+      MinikitCli.DashboardProxy proxy, String namespaceName) {
+    return proxy.baseUrl() + "#/workloads?namespace=" + namespaceName;
+  }
+
+  private void waitForDashboardEndpoint() {
+    long deadline = System.nanoTime() + DASHBOARD_WAIT_TIMEOUT.toNanos();
+    while (System.nanoTime() < deadline) {
+      try {
+        var endpoints =
+            client
+                .endpoints()
+                .inNamespace(DASHBOARD_NAMESPACE)
+                .withName(DASHBOARD_SERVICE)
+                .get();
+        if (hasReadyEndpoint(endpoints)) {
+          return;
+        }
+      } catch (KubernetesClientException e) {
+        log.debug("Dashboard endpoint not ready yet: {}", e.getMessage());
+      }
+
+      try {
+        Thread.sleep(DASHBOARD_WAIT_INTERVAL.toMillis());
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new ClusterException("Interrupted while waiting for minikube dashboard endpoint", e);
+      }
+    }
+    throw new ClusterException(
+        "Dashboard service "
+            + DASHBOARD_NAMESPACE
+            + "/"
+            + DASHBOARD_SERVICE
+            + " has no ready endpoints after "
+            + DASHBOARD_WAIT_TIMEOUT);
+  }
+
+  private static boolean hasReadyEndpoint(io.fabric8.kubernetes.api.model.Endpoints endpoints) {
+    if (endpoints == null || endpoints.getSubsets() == null) {
+      return false;
+    }
+    return endpoints.getSubsets().stream()
+        .anyMatch(
+            subset ->
+                subset.getAddresses() != null
+                    && !subset.getAddresses().isEmpty()
+                    && subset.getPorts() != null
+                    && !subset.getPorts().isEmpty());
   }
 
   /**
