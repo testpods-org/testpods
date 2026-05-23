@@ -280,9 +280,16 @@ public class TestPodsExtension
 
     @Override
     public void afterAll(ExtensionContext extensionContext) throws Exception {
-        registry.tearDown();
-        if (registry.getCluster() != null) {
-            registry.getCluster().close();
+        if (testPodsAnnotation == null || testPodsAnnotation.deleteNamespaceAfterTests()) {
+            registry.tearDown();
+            if (registry.getCluster() != null) {
+                registry.getCluster().close();
+            }
+        } else {
+            log.info(
+                    "Leaving TestPods namespace and provisioned resources running for {} because "
+                            + "@TestPods(deleteNamespaceAfterTests = false) is set",
+                    extensionContext.getRequiredTestClass().getSimpleName());
         }
         // Clear thread-local state to prevent memory leaks in thread pool executors
         TestPodDefaults.clear();

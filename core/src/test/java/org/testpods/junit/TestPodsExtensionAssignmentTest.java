@@ -166,6 +166,7 @@ class TestPodsExtensionAssignmentTest {
 
         static class RecordingCluster implements K8sCluster {
             boolean closed;
+            boolean namespaceDeleted;
 
             @Override public KubernetesClient getClient() { return null; }
             @Override public ExternalAccessStrategy getAccessStrategy() {
@@ -178,7 +179,7 @@ class TestPodsExtensionAssignmentTest {
             @Override public Namespace createNamespace(String name) { return STUB_NAMESPACE; }
             @Override public Namespace createNamespace() { return STUB_NAMESPACE; }
             @Override public Namespace attachNamespace(String name) { return STUB_NAMESPACE; }
-            @Override public void deleteNamespace(String name) {}
+            @Override public void deleteNamespace(String name) { namespaceDeleted = true; }
             @Override public K8sCluster withNamespace() { return this; }
             @Override public void close() { closed = true; }
         }
@@ -242,6 +243,17 @@ class TestPodsExtensionAssignmentTest {
             static RecordingPod postgres = new RecordingPod("postgres");
         }
 
+        @TestPods(deleteNamespaceAfterTests = false)
+        static class TestClassWithPreservedNamespace {
+            static RecordingCluster cluster = new RecordingCluster();
+
+            @RegisterCluster
+            static K8sCluster registeredCluster = cluster;
+
+            @TestPod
+            static RecordingPod postgres = new RecordingPod("postgres");
+        }
+
         @Test
         void beforeAll_provisionsInitializedTestPodAndAfterAllStopsIt() throws Exception {
             TestClassWithInitializedPod.cluster = new RecordingCluster();
@@ -261,7 +273,23 @@ class TestPodsExtensionAssignmentTest {
             }
 
             assertThat(TestClassWithInitializedPod.postgres.stopped).isTrue();
+            assertThat(TestClassWithInitializedPod.cluster.namespaceDeleted).isTrue();
             assertThat(TestClassWithInitializedPod.cluster.closed).isTrue();
+        }
+
+        @Test
+        void afterAll_preservesPodsNamespaceAndCluster_whenNamespaceDeletionDisabled() throws Exception {
+            TestClassWithPreservedNamespace.cluster = new RecordingCluster();
+            TestClassWithPreservedNamespace.registeredCluster = TestClassWithPreservedNamespace.cluster;
+            TestClassWithPreservedNamespace.postgres = new RecordingPod("postgres");
+
+            extension.beforeAll(contextFor(TestClassWithPreservedNamespace.class));
+            extension.afterAll(contextFor(TestClassWithPreservedNamespace.class));
+
+            assertThat(TestClassWithPreservedNamespace.postgres.started).isTrue();
+            assertThat(TestClassWithPreservedNamespace.postgres.stopped).isFalse();
+            assertThat(TestClassWithPreservedNamespace.cluster.namespaceDeleted).isFalse();
+            assertThat(TestClassWithPreservedNamespace.cluster.closed).isFalse();
         }
     }
 

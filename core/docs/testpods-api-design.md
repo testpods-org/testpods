@@ -139,6 +139,131 @@ For NodePort, Kubernetes only accepts ports inside the cluster's configured Node
 local clusters default to `30000-32767`, so `withFixedExposedPort(54320, 5432)` works naturally with
 port-forward access but may be rejected by a default NodePort service.
 
+### Shared Cluster, Isolated Namespace Model
+
+Integration test suites can avoid repeated minikube startup cost by starting or attaching to one
+local cluster before the suite, then giving each test class a distinct namespace. The cluster is the
+expensive shared fixture; the namespace is the isolation boundary.
+
+This does not require Maven. Any runner can do it as long as it starts the cluster process first,
+runs the JUnit Platform against selected `*IT` classes afterwards, and stops the cluster at the end:
+
+```bash
+minikube start -p testpods
+java -jar junit-platform-console-standalone.jar \
+  --class-path '<compiled-main-and-test-classes-plus-dependencies>' \
+  --scan-class-path \
+  --include-classname '.*IT'
+minikube delete -p testpods
+```
+
+Maven Failsafe is still useful for normal project automation, but it is not the thing that enforces
+the shared-cluster model. The important rule is that all test classes attach to the same profile and
+create their own namespace.
+
+Namespaces prevent most cross-class interference for namespaced Kubernetes objects such as Pods,
+Services, StatefulSets, ConfigMaps, Secrets, PVCs, and Events. They do not isolate cluster-scoped
+state: StorageClasses, PersistentVolumes after binding, CRDs, admission webhooks, NodePort numbers,
+minikube profile lifecycle, container image cache, node resources, and fixed external ports remain
+shared. Tests using fixed ports, fixed namespace names, cluster-scoped resources, or shared external
+systems still need explicit coordination.
+
+For debugging, `@TestPods(deleteNamespaceAfterTests = false)` leaves the provisioned namespace and
+resources running after the test class finishes so they can be inspected with `kubectl`, the
+minikube dashboard, or a database client.
+
+### Test and Pod Hygiene
+
+The rule of thumb in a shared-cluster setup is simple: a test class should be able to create and
+destroy everything inside its own namespace without leaving the cluster in a different global
+state for the next class.
+
+A good test does this:
+
+1. Uses its own namespace, preferably created automatically by TestPods.
+2. Uses dynamic external ports unless a fixed port is absolutely required for debugging.
+3. Leaves cluster-scoped objects alone.
+4. Cleans up only the resources it owns.
+5. Treats preserved namespaces as a deliberate debug mode, not a normal test outcome.
+
+A good pod does this:
+
+1. Creates namespaced resources only when possible.
+2. Avoids mutating shared cluster state such as StorageClasses, CRDs, webhooks, or cluster-wide RBAC.
+3. Uses image names and tags that are explicit and reproducible.
+4. Logs the namespace, internal DNS name, external host and port, and any PVCs or other resources a developer needs to inspect.
+5. Keeps its side effects limited to its own namespace unless the pod type intentionally represents cluster-level infrastructure.
+
+The main reason for this discipline is that some Kubernetes resources are not isolated by namespace.
+If a test changes cluster-scoped state, the next test class can fail even if it starts in a fresh
+namespace. Examples include `StorageClass`, `PersistentVolume`, `CustomResourceDefinition`,
+`ClusterRole`, `ClusterRoleBinding`, admission webhooks, fixed NodePorts, and the minikube profile
+itself.
+
+That is why the default TestPods model should be:
+
+1. One shared local cluster.
+2. One namespace per test class.
+3. Dynamic external access by default.
+4. Explicit opt-in for any cluster-scoped behavior.
+
+### Image Distribution
+
+TestPods does not push images into minikube on your behalf. The pod spec only names an image, and
+Kubernetes decides whether the node already has it or must pull it from a registry.
+
+For local Spring Boot builds, the common approaches are:
+
+1. Build the image and load it into minikube:
+
+```bash
+./mvnw spring-boot:build-image
+minikube image load myapp:0.1.0-SNAPSHOT
+```
+
+2. Build against the minikube Docker daemon:
+
+```bash
+eval "$(minikube docker-env)"
+./mvnw spring-boot:build-image
+```
+
+3. Push to a registry that the cluster can reach, then reference that fully qualified image name in
+   the pod.
+
+If a pod uses an image such as `kafka:1.2.3`, TestPods will not pre-pull it itself. The cluster
+will try to pull it only if the node does not already have a matching cached image and the image
+pull policy allows it. For private or local images, use `minikube image load` or a registry.
+
+### Local Spring Boot Images
+
+When you build a Spring Boot service locally and want TestPods to use that image in minikube, the
+most direct workflow is:
+
+```bash
+./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=myapp:dev
+minikube image load myapp:dev
+```
+
+That keeps the image local to the minikube node and avoids depending on an external registry.
+
+If you want the image build to go directly into minikube's Docker daemon instead of loading it
+afterwards, use:
+
+```bash
+eval "$(minikube docker-env)"
+./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=myapp:dev
+```
+
+Use a fixed, explicit tag for the pod, for example:
+
+```java
+new GenericPod("myapp:dev");
+```
+
+Avoid `latest` for repeatable integration tests. Mutable tags make it harder to tell whether a
+failure came from the application change or from the image that happened to be cached on the node.
+
 ### Class hierarchy (implemented)
 
 ```

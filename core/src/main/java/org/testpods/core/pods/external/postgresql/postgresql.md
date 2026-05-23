@@ -90,6 +90,9 @@ new PostgreSQLPod("postgres:17-alpine");
 new PostgreSQLPod().withVersion("15-alpine");
 ```
 
+For local Spring Boot image workflows and minikube loading options, see the main API design docs:
+[Local Spring Boot Images](../../../../../docs/testpods-api-design.md#local-spring-boot-images).
+
 ## Persistent Data
 
 By default PostgreSQL data is ephemeral and disappears when the pod is deleted. Enable persistence
@@ -178,6 +181,25 @@ PostgreSQL, and verifies both Kubernetes readiness and a JDBC `SELECT 1`:
 ```bash
 mvn verify -Dit.test=TestPodsExtensionPostgreSQLIT
 ```
+
+`@TestPods` can also preserve the namespace and provisioned resources after a test class finishes.
+This is useful when debugging a failing integration test and inspecting the resulting StatefulSet,
+Services, PVCs, ConfigMaps, logs, and events:
+
+```java
+@TestPods(deleteNamespaceAfterTests = false)
+class RepositoryIT {
+  @RegisterCluster
+  static K8sCluster cluster = K8sCluster.newMinikube().withNamespace();
+
+  @TestPod
+  static PostgreSQLPod postgres = new PostgreSQLPod().withDatabase("orders");
+}
+```
+
+In preserve mode the extension leaves the pods and cluster lifecycle alone. If TestPods started a
+minikube profile for the test, that profile may continue running so the namespace remains available
+for inspection.
 
 ## Debug Deployment Details
 
