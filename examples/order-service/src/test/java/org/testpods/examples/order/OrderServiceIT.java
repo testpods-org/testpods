@@ -37,7 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 @Testcontainers
-class OrderServiceIntegrationTest {
+class OrderServiceIT {
 
     @Container
     @ServiceConnection

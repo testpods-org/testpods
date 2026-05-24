@@ -1,16 +1,26 @@
 package org.testpods.core.pods.external.postgresql;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import org.junit.jupiter.api.Test;
+import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.MinikubeCluster;
+import org.testpods.core.cluster.Namespace;
+import org.testpods.core.wait.WaitStrategy;
+import org.testpods.junit.RegisterCluster;
+import org.testpods.junit.TestPods;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.time.Duration;
-import org.junit.jupiter.api.Test;
-import org.testpods.core.wait.WaitStrategy;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /** Integration tests proving PostgreSQL Docker entrypoint init scripts execute in Kubernetes. */
+@TestPods
 class PostgreSQLPodInitScriptIT {
+
+  @RegisterCluster
+  static K8sCluster cluster;
 
   @Test
   void shouldExecuteInitScripts() throws Exception {
@@ -29,10 +39,14 @@ class PostgreSQLPodInitScriptIT {
     try {
       postgres.start();
       assertTableExists(postgres, "test_table");
-    } finally {
+    } catch (Exception e) {
       postgres.stop();
-      if (postgres.getCluster() != null) {
-        postgres.getCluster().close();
+      throw e;
+    }
+    finally {
+      postgres.stop();
+      if (cluster != null) {
+        cluster.close();
       }
     }
   }

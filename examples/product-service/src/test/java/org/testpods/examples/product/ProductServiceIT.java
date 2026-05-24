@@ -30,7 +30,7 @@ import static org.awaitility.Awaitility.await;
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.DEFINED_PORT)
 @Testcontainers
-class ProductServiceIntegrationTest {
+class ProductServiceIT {
 
     @Container
     @ServiceConnection

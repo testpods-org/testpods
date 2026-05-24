@@ -7,6 +7,7 @@ import io.fabric8.kubernetes.api.model.EnvVarBuilder;
 import java.util.ArrayList;
 import java.util.List;
 import org.testpods.core.PropertyContext;
+import org.testpods.core.pods.PodLifecycleHooks;
 import org.testpods.core.pods.StatefulSetPod;
 import org.testpods.core.wait.WaitStrategy;
 
@@ -42,7 +43,7 @@ import org.testpods.core.wait.WaitStrategy;
  * String internalUri = mongo.getInternalConnectionString();
  * }</pre>
  */
-public class MongoDBPod extends StatefulSetPod<MongoDBPod> {
+public class MongoDBPod extends StatefulSetPod<MongoDBPod> implements PodLifecycleHooks {
 
   private static final String DEFAULT_IMAGE = "mongo:6.0";
   private static final int DEFAULT_PORT = 27017;
@@ -197,6 +198,7 @@ public class MongoDBPod extends StatefulSetPod<MongoDBPod> {
         new ContainerBuilder()
             .withName("mongodb")
             .withImage(image)
+            .withImagePullPolicy("IfNotPresent")
             .withPorts(
                 new ContainerPortBuilder()
                     .withName("mongodb")
@@ -244,5 +246,10 @@ public class MongoDBPod extends StatefulSetPod<MongoDBPod> {
     }
 
     return builder.build();
+  }
+
+  @Override
+  public void preStart() {
+    preloadExternalImageForMinikube(image);
   }
 }

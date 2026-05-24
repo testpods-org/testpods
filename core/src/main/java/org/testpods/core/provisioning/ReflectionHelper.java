@@ -65,8 +65,8 @@ public class ReflectionHelper {
                 continue;
             }
             if (value == null) {
-                log.warn(
-                        "@RegisterCluster field '{}' in {} is null — skipping",
+                log.debug(
+                        "@RegisterCluster field '{}' in {} is null — cluster will be resolved by provisioning",
                         field.getName(),
                         clazz.getSimpleName());
                 continue;

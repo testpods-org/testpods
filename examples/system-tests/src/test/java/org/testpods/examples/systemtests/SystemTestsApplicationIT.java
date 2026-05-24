@@ -8,7 +8,7 @@ import org.junit.jupiter.api.Test;
  * Future tests will orchestrate order-service and product-service together.
  * For now, just a simple no-op test to verify the module compiles and runs.
  */
-class SystemTestsApplicationTests {
+class SystemTestsApplicationIT {
 
     @Test
     void contextLoads() {

@@ -35,8 +35,8 @@ import org.testpods.core.wait.WaitStrategy;
  * resolve {@code <name>.<namespace>.svc.cluster.local} and reach the locally running service.
  *
  * <p>Host resolution prefers Minikube's {@code host.minikube.internal} DNS name; if that fails to
- * resolve (e.g. on hyperkit/qemu drivers), it falls back to {@link InetAddress#getLocalHost()}.
- * The resolved IP is written to the {@code Endpoints} resource because Kubernetes requires an IP
+ * resolve (e.g. on hyperkit/qemu drivers), it falls back to {@link InetAddress#getLocalHost()}. The
+ * resolved IP is written to the {@code Endpoints} resource because Kubernetes requires an IP
  * address there, not a DNS name.
  *
  * <p>Typical usage:
@@ -64,6 +64,7 @@ public class LocalServicePod implements Pod<LocalServicePod> {
   private boolean started;
   private Service createdService;
   private Endpoints createdEndpoints;
+  private KubernetesGateway gateway;
 
   /**
    * Create a new LocalServicePod with the given Kubernetes Service name.
@@ -75,8 +76,8 @@ public class LocalServicePod implements Pod<LocalServicePod> {
   }
 
   /**
-   * Set the TCP port on the developer's laptop that the local service is listening on. This
-   * becomes the {@code port} of the {@code Endpoints} subset.
+   * Set the TCP port on the developer's laptop that the local service is listening on. This becomes
+   * the {@code port} of the {@code Endpoints} subset.
    *
    * @param port host port (1-65535)
    */
@@ -183,7 +184,6 @@ public class LocalServicePod implements Pod<LocalServicePod> {
     resolveRuntimeDefaults();
     String hostIp = resolveHostIp();
 
-    KubernetesClient client = cluster.getClient();
     String ns = namespace.getName();
     Map<String, String> allLabels = buildLabels();
 
@@ -228,8 +228,9 @@ public class LocalServicePod implements Pod<LocalServicePod> {
             .build();
 
     try {
-      createdService = client.services().inNamespace(ns).resource(service).create();
-      createdEndpoints = client.endpoints().inNamespace(ns).resource(endpoints).create();
+      KubernetesGateway activeGateway = getGateway();
+      createdService = activeGateway.createService(ns, service);
+      createdEndpoints = activeGateway.createEndpoints(ns, endpoints);
       started = true;
       log.info(
           "Started LocalServicePod '{}': in-cluster {}.{}.svc.cluster.local:{} -> host {}:{}",
@@ -241,8 +242,9 @@ public class LocalServicePod implements Pod<LocalServicePod> {
           hostPort);
     } catch (RuntimeException e) {
       // Best-effort cleanup on failure so we don't leave half a pair behind.
-      safeDelete(() -> client.endpoints().inNamespace(ns).withName(name).delete());
-      safeDelete(() -> client.services().inNamespace(ns).withName(name).delete());
+      KubernetesGateway activeGateway = getGateway();
+      safeDelete(() -> activeGateway.deleteEndpoints(ns, name));
+      safeDelete(() -> activeGateway.deleteService(ns, name));
       throw e;
     }
   }
@@ -255,18 +257,17 @@ public class LocalServicePod implements Pod<LocalServicePod> {
       createdEndpoints = null;
       return;
     }
-    KubernetesClient client = cluster.getClient();
     String ns = namespace.getName();
     try {
       try {
-        client.endpoints().inNamespace(ns).withName(name).delete();
+        getGateway().deleteEndpoints(ns, name);
       } catch (KubernetesClientException kce) {
         if (kce.getCode() != 404) {
           throw kce;
         }
       }
       try {
-        client.services().inNamespace(ns).withName(name).delete();
+        getGateway().deleteService(ns, name);
       } catch (KubernetesClientException kce) {
         if (kce.getCode() != 404) {
           throw kce;
@@ -385,6 +386,11 @@ public class LocalServicePod implements Pod<LocalServicePod> {
     return createdEndpoints;
   }
 
+  LocalServicePod withGatewayForTests(KubernetesGateway gateway) {
+    this.gateway = gateway;
+    return this;
+  }
+
   /**
    * Resolve a routable IP address for the developer's host machine.
    *
@@ -417,8 +423,8 @@ public class LocalServicePod implements Pod<LocalServicePod> {
   }
 
   /**
-   * Mirrors the resolution logic in {@code BaseManagedPod.resolveRuntimeDefaults()} so that
-   * {@code Registry.provisionTestPods()} can inject a cluster and rely on the same defaults.
+   * Mirrors the resolution logic in {@code BaseManagedPod.resolveRuntimeDefaults()} so that {@code
+   * Registry.provisionTestPods()} can inject a cluster and rely on the same defaults.
    */
   private void resolveRuntimeDefaults() {
     if (cluster == null) {
@@ -476,6 +482,51 @@ public class LocalServicePod implements Pod<LocalServicePod> {
       deletion.run();
     } catch (RuntimeException ignored) {
       // best-effort cleanup
+    }
+  }
+
+  private KubernetesGateway getGateway() {
+    if (gateway == null) {
+      gateway = new ClientKubernetesGateway(cluster.getClient());
+    }
+    return gateway;
+  }
+
+  interface KubernetesGateway {
+    Service createService(String namespace, Service service);
+
+    Endpoints createEndpoints(String namespace, Endpoints endpoints);
+
+    void deleteService(String namespace, String name);
+
+    void deleteEndpoints(String namespace, String name);
+  }
+
+  private static final class ClientKubernetesGateway implements KubernetesGateway {
+    private final KubernetesClient client;
+
+    private ClientKubernetesGateway(KubernetesClient client) {
+      this.client = client;
+    }
+
+    @Override
+    public Service createService(String namespace, Service service) {
+      return client.services().inNamespace(namespace).resource(service).create();
+    }
+
+    @Override
+    public Endpoints createEndpoints(String namespace, Endpoints endpoints) {
+      return client.endpoints().inNamespace(namespace).resource(endpoints).create();
+    }
+
+    @Override
+    public void deleteService(String namespace, String name) {
+      client.services().inNamespace(namespace).withName(name).delete();
+    }
+
+    @Override
+    public void deleteEndpoints(String namespace, String name) {
+      client.endpoints().inNamespace(namespace).withName(name).delete();
     }
   }
 }

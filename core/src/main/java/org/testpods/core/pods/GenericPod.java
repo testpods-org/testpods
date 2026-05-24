@@ -1,9 +1,16 @@
 package org.testpods.core.pods;
 
 import io.fabric8.kubernetes.api.model.Container;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.Map;
+import java.util.Set;
 import org.testpods.core.PropertyContext;
+import org.testpods.core.cluster.ClusterException;
 import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.minikube.MinikubeImageLoadTarget;
+import org.testpods.core.cluster.minikube.MinikubeImageLoader;
 import org.testpods.core.wait.WaitStrategy;
 
 /**
@@ -21,15 +28,27 @@ import org.testpods.core.wait.WaitStrategy;
  *     .inNamespace(namespace);
  * }</pre>
  */
-public class GenericPod extends DeploymentPod<GenericPod> {
+public class GenericPod extends DeploymentPod<GenericPod> implements PodLifecycleHooks {
 
   private final ContainerDefinition container = new ContainerDefinition();
+  private static LocalImageLoader localImageLoader = new MinikubeImageLoaderAdapter();
+  private static final Map<K8sCluster, Set<String>> LOADED_LOCAL_IMAGES =
+      Collections.synchronizedMap(new IdentityHashMap<>());
+
   private K8sCluster localCluster;
+  private String localImageTag;
 
   public GenericPod(String image) {
     container.withImage(image);
     this.name = deriveNameFromImage(image);
     this.labels.put("app", this.name);
+  }
+
+  public static GenericPod fromLocalImage(String imageTag) {
+    GenericPod pod = new GenericPod(imageTag);
+    pod.container.withImagePullPolicy("Never");
+    pod.localImageTag = imageTag;
+    return pod;
   }
 
   private static String deriveNameFromImage(String image) {
@@ -77,6 +96,31 @@ public class GenericPod extends DeploymentPod<GenericPod> {
   }
 
   @Override
+  public void preStart() {
+    if (localImageTag == null) {
+      return;
+    }
+    K8sCluster activeCluster = getCluster();
+    if (activeCluster == null) {
+      activeCluster = TestPodDefaults.resolveCluster();
+      inCluster(activeCluster);
+    }
+    if (!(activeCluster instanceof MinikubeImageLoadTarget minikube)) {
+      throw new ClusterException("GenericPod.fromLocalImage requires a MinikubeCluster");
+    }
+
+    synchronized (LOADED_LOCAL_IMAGES) {
+      Set<String> loadedImages =
+          LOADED_LOCAL_IMAGES.computeIfAbsent(activeCluster, ignored -> new HashSet<>());
+      if (loadedImages.contains(localImageTag)) {
+        return;
+      }
+      localImageLoader.load(minikube.getProfileName(), localImageTag);
+      loadedImages.add(localImageTag);
+    }
+  }
+
+  @Override
   public K8sCluster getCluster() {
     return localCluster != null ? localCluster : super.getCluster();
   }
@@ -114,5 +158,28 @@ public class GenericPod extends DeploymentPod<GenericPod> {
   @Override
   protected Container buildMainContainer() {
     return container.buildContainer(name);
+  }
+
+  interface LocalImageLoader {
+    void load(String profileName, String imageTag);
+  }
+
+  static void setLocalImageLoaderForTests(LocalImageLoader loader) {
+    localImageLoader = loader;
+    LOADED_LOCAL_IMAGES.clear();
+  }
+
+  static void resetLocalImageLoaderForTests() {
+    localImageLoader = new MinikubeImageLoaderAdapter();
+    LOADED_LOCAL_IMAGES.clear();
+  }
+
+  private static final class MinikubeImageLoaderAdapter implements LocalImageLoader {
+    private final MinikubeImageLoader delegate = new MinikubeImageLoader();
+
+    @Override
+    public void load(String profileName, String imageTag) {
+      delegate.load(profileName, imageTag);
+    }
   }
 }

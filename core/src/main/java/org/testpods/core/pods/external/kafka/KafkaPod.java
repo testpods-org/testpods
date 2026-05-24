@@ -407,6 +407,7 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
     return new ContainerBuilder()
         .withName("kafka")
         .withImage(image)
+        .withImagePullPolicy("IfNotPresent")
         .withPorts(
             new ContainerPortBuilder()
                 .withName("internal")
@@ -460,6 +461,14 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
   }
 
   @Override
+  public void preStart() {
+    preloadExternalImageForMinikube(image);
+    if (uiEnabled) {
+      preloadExternalImageForMinikube(uiImage);
+    }
+  }
+
+  @Override
   public void postStart() {
     ensureExternalPortForward();
     if (uiEnabled) {
@@ -509,6 +518,7 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
     return new ContainerBuilder()
         .withName("redpanda-console")
         .withImage(uiImage)
+        .withImagePullPolicy("IfNotPresent")
         .withPorts(
             new ContainerPortBuilder()
                 .withName("ui")

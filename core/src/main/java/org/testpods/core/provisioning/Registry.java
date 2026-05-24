@@ -49,6 +49,24 @@ public class Registry {
 
     }
 
+    public void ensureClusterIsReady() {
+        if (cluster == null) {
+            cluster = K8sCluster.discover();
+        }
+        TestPodDefaults.setClusterSupplier(() -> cluster);
+    }
+
+    public void ensureNamespaceIsActive() {
+        ensureClusterIsReady();
+        if (cluster.getDefaultNamespace() == null) {
+            cluster.createNamespace();
+        }
+        if (cluster.getDefaultNamespace() != null) {
+            TestPodDefaults.setSharedNamespace(cluster.getDefaultNamespace());
+            registeredNamespaceNames.add(cluster.getDefaultNamespace().getName());
+        }
+    }
+
     public void addPod(String name, Pod<?> pod) {
         podsByName.put(name, pod);
     }
@@ -58,15 +76,7 @@ public class Registry {
     }
 
     public void provisionTestPods() {
-      if (cluster == null) {
-        throw new IllegalStateException("A K8sCluster is required before provisioning TestPods");
-      }
-
-      TestPodDefaults.setClusterSupplier(() -> cluster);
-      if (cluster.getDefaultNamespace() != null) {
-        TestPodDefaults.setSharedNamespace(cluster.getDefaultNamespace());
-        registeredNamespaceNames.add(cluster.getDefaultNamespace().getName());
-      }
+      ensureNamespaceIsActive();
 
       try {
         for (FieldInitialization initialization : testPodInitializationsByName.values()) {

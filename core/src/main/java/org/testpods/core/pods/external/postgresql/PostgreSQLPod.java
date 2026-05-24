@@ -22,9 +22,9 @@ import java.util.StringJoiner;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.pods.PodLifecycleHooks;
 import org.testpods.core.pods.StatefulSetPod;
+import org.testpods.core.service.ClusterIPServiceManager;
 import org.testpods.core.service.CompositeServiceManager;
 import org.testpods.core.service.HeadlessServiceManager;
-import org.testpods.core.service.NodePortServiceManager;
 import org.testpods.core.service.ServiceManager;
 import org.testpods.core.wait.WaitStrategy;
 import org.testpods.core.workload.StatefulSetManager;
@@ -475,6 +475,7 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
         new ContainerBuilder()
             .withName("postgres")
             .withImage(image)
+            .withImagePullPolicy("IfNotPresent")
             .addNewPort()
             .withContainerPort(POSTGRESQL_PORT)
             .withName("postgres")
@@ -567,7 +568,7 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
 
   @Override
   protected ServiceManager createServiceManager() {
-    return new CompositeServiceManager(new NodePortServiceManager(), new HeadlessServiceManager())
+    return new CompositeServiceManager(new ClusterIPServiceManager(), new HeadlessServiceManager())
         .withSuffixes("", "-headless");
   }
 
@@ -595,6 +596,7 @@ public class PostgreSQLPod extends StatefulSetPod<PostgreSQLPod> implements PodL
 
   @Override
   public void preStart() {
+    preloadExternalImageForMinikube(image);
     if (hasInitScripts()) {
       createInitScriptConfigMap();
     }

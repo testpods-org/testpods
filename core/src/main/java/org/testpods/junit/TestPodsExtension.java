@@ -251,7 +251,6 @@ public class TestPodsExtension
                         testpodsProviders, providerInstances);
             }
         }
-        assert cluster != null : "A K8Cluster is required for TestPods to provision resources.";
         registry.setCluster(cluster);
         registry.validateConfiguration();
     }

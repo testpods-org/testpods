@@ -23,11 +23,11 @@ public class Provisioner {
 
 
     public void ensureClusterIsReady() {
-
+        if (registry != null) registry.ensureClusterIsReady();
     }
 
     public void ensureNamespaceIsActive() {
-
+        if (registry != null) registry.ensureNamespaceIsActive();
     }
 
     public void provisionTestPods() {

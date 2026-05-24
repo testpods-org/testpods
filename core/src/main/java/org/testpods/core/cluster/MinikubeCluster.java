@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
+import org.testpods.core.cluster.minikube.MinikubeImageLoadTarget;
 
 /**
  * K8sCluster implementation backed by a local {@code minikit} / {@code minikube} profile.
@@ -23,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  * {@link ProfileLifecyclePolicy}.
  */
 @Slf4j
-public class MinikubeCluster implements K8sCluster, Closeable {
+public class MinikubeCluster implements K8sCluster, MinikubeImageLoadTarget, Closeable {
 
   /** Default minikube profile name used by {@link #create()} and {@link #builder()}. */
   static final String DEFAULT_PROFILE_NAME = "testpods";
@@ -91,7 +92,7 @@ public class MinikubeCluster implements K8sCluster, Closeable {
     this.client = createAndPingClient(profileName);
     this.policy = ownsProfile ? policy : ProfileLifecyclePolicy.LEAVE_RUNNING;
     this.namespaces = new HashMap<>();
-    this.accessStrategy = ExternalAccessStrategy.minikubeService(cli, profileName);
+    this.accessStrategy = ExternalAccessStrategy.portForward();
     Namespace namespace = createNamespace();
     log.info(
         "Created TestPods namespace {} in minikube profile {}", namespace.getName(), profileName);

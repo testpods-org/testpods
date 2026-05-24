@@ -25,6 +25,7 @@ public class ContainerDefinition {
   private List<String> command;
   private List<String> args;
   private Integer primaryPort;
+  private String imagePullPolicy;
   private String readinessPath;
   private Integer readinessPort;
 
@@ -67,6 +68,11 @@ public class ContainerDefinition {
     return this;
   }
 
+  public ContainerDefinition withImagePullPolicy(String imagePullPolicy) {
+    this.imagePullPolicy = imagePullPolicy;
+    return this;
+  }
+
   public ContainerDefinition withHttpReadinessProbe(String path, int port) {
     this.readinessPath = path;
     this.readinessPort = port;
@@ -89,6 +95,9 @@ public class ContainerDefinition {
 
   public Container buildContainer(String name) {
     ContainerSpec spec = new ContainerSpec().withName(name).withImage(image);
+    if (imagePullPolicy != null) {
+      spec.customize(builder -> builder.withImagePullPolicy(imagePullPolicy));
+    }
 
     if (command != null && !command.isEmpty()) {
       spec.withCommand(command.toArray(new String[0]));

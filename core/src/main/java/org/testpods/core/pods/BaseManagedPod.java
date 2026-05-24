@@ -8,8 +8,11 @@ import io.fabric8.kubernetes.client.dsl.PodResource;
 import java.io.ByteArrayOutputStream;
 import java.time.Duration;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
@@ -25,6 +28,8 @@ import org.testpods.core.PropertyContext;
 import org.testpods.core.TestPodStartException;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.cluster.Namespace;
+import org.testpods.core.cluster.minikube.MinikubeImageLoadTarget;
+import org.testpods.core.cluster.minikube.MinikubeImageLoader;
 import org.testpods.core.pods.builders.InitContainerBuilder;
 import org.testpods.core.pods.builders.SidecarBuilder;
 import org.testpods.core.service.ServiceConfig;
@@ -80,6 +85,9 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
   protected final Map<Integer, Integer> fixedExposedPorts = new LinkedHashMap<>();
   protected final Map<Integer, org.testpods.core.cluster.HostAndPort> mappedPorts =
       new ConcurrentHashMap<>();
+  private static final MinikubeImageLoader MINIKUBE_IMAGE_LOADER = new MinikubeImageLoader();
+  private static final Map<K8sCluster, Set<String>> PRELOADED_MINIKUBE_IMAGES =
+      Collections.synchronizedMap(new IdentityHashMap<>());
 
   // Lazy initialization support - these are used when namespace is not explicitly set
 //  protected K8sCluster cluster;
@@ -458,6 +466,33 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
   }
 
   /**
+   * For Minikube-backed clusters, cache an external dependency image in Docker Desktop and load it
+   * into the active Minikube profile before Kubernetes schedules the pod.
+   */
+  protected void preloadExternalImageForMinikube(String image) {
+    if (image == null || image.isBlank()) {
+      return;
+    }
+    if (!(cluster instanceof MinikubeImageLoadTarget minikube)) {
+      return;
+    }
+
+    synchronized (PRELOADED_MINIKUBE_IMAGES) {
+      Set<String> loadedImages =
+          PRELOADED_MINIKUBE_IMAGES.computeIfAbsent(cluster, ignored -> new HashSet<>());
+      if (loadedImages.contains(image)) {
+        return;
+      }
+      log.info(
+          "Preloading dependency image {} into minikube profile {}",
+          image,
+          minikube.getProfileName());
+      MINIKUBE_IMAGE_LOADER.loadCachedOrPull(minikube.getProfileName(), image);
+      loadedImages.add(image);
+    }
+  }
+
+  /**
    * Get the default wait strategy for this pod type. Subclasses override to provide appropriate
    * defaults.
    */
@@ -723,6 +758,7 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
 
   @Override
   public final void start() {
+    resolveRuntimeDefaults();
     if (this instanceof PodLifecycleHooks h) {
       h.preStart();
     }
