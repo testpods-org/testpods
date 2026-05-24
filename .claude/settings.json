@@ -4,11 +4,82 @@
     "ENABLE_LSP_TOOL": "1",
     "DISABLE_TELEMETRY": "1",
     "DISABLE_ERROR_REPORTING": "1",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "DISABLE_AUTOUPDATER": "1",
     "DISABLE_COST_WARNINGS": "1"
   },
   "enabledPlugins": {
     "jdtls-lsp@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.junit.org)",
+      "WebFetch(domain:java.testcontainers.org)",
+      "WebFetch(domain:spring.io)",
+      "WebFetch(domain:docs.spring.io)",
+      "WebFetch(domain:maven.apache.org)",
+      "WebFetch(domain:repo1.maven.org)",
+      "WebFetch(domain:mvnrepository.com)",
+      "WebFetch(domain:search.maven.org)",
+      "WebFetch(domain:docs.oracle.com)",
+      "WebFetch(domain:openjdk.org)",
+      "WebFetch(domain:rieckpil.de)",
+      "WebFetch(domain:www.danvega.dev)",
+
+      "Read(//Users/henrik/git/henrik/testpods-project/testpods/**)",
+      "Read(//Users/henrik/git/henrik/testpods-project/**)",
+      "Read(//Users/henrik/.claude/**)",
+      "Read(//Users/henrik/.claude/plugins/**)",
+      "Read(//Users/henrik/.minikube/profiles/**)",
+      "Read(//tmp/**)",
+
+      "Bash(pwd)",
+      "Bash(env)",
+      "Bash(echo:*)",
+      "Bash(ls:*)",
+      "Bash(rg:*)",
+      "Bash(grep:*)",
+
+      "Bash(mvn:*)",
+      "Bash(./mvnw:*)",
+      "Bash(mvnw:*)",
+
+      "Bash(javac:*)",
+      "Bash(javap:*)",
+      "Bash(jar:*)",
+      "Bash(jdeps:*)",
+      "Bash(jdeprscan:*)",
+      "Bash(java -version)",
+      "Bash(java --version)",
+
+      "Bash(unzip -l:*)",
+      "Bash(tar -tf:*)",
+
+      "Bash(asdf where:*)",
+      "Bash(asdf which:*)",
+      "Bash(asdf list:*)",
+      "Bash(asdf current:*)",
+
+      "Bash(docker info:*)",
+      "Bash(docker version:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl logs:*)",
+      "Bash(kubectl version:*)",
+      "Bash(minikit --help)",
+      "Bash(minikit status:*)",
+      "Bash(minikit list:*)",
+
+      "Bash(yq:*)",
+      "Bash(jdtls:*)",
+      "Bash(flow status:*)",
+      "Bash(flow config:*)",
+      "Bash(just --list:*)",
+
+      "mcp__plugin_compounding-engineering_context7__resolve-library-id",
+      "mcp__plugin_compounding-engineering_context7__query-docs",
+      "mcp__ide__getDiagnostics"
+    ]
   }
 }
