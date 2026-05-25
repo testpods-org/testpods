@@ -29,7 +29,8 @@ class LocalProductServiceDevIT {
   private static final Logger log = LoggerFactory.getLogger(LocalProductServiceDevIT.class);
   private static final String ORDER_IMAGE = "examples/order-service:test-current";
 
-  @RegisterCluster static K8sCluster cluster = K8sCluster.newMinikube().withNamespace();
+  @RegisterCluster
+  static K8sCluster cluster;
 
   @TestPod
   static PostgreSQLPod orderDb =

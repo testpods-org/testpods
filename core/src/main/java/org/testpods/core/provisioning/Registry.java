@@ -57,7 +57,6 @@ public class Registry {
     // For each TestPod field declared in the test class, check if it is initialized in the TestPodsRepository
     public void validateConfiguration() {
         //TODO
-
     }
 
     public void ensureClusterIsReady() {

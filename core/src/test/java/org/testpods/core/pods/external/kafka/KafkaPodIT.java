@@ -37,7 +37,6 @@ public class KafkaPodIT {
     @Test
     void startsKafkaAndExposesBrokerAndRedpandaUi() throws Exception {
         KafkaPod kafka = new KafkaPod().withName("kafka-it").withTopics("orders-it").withUi();
-
         try {
             kafka.start();
             assertThat(kafka.getCluster()).isSameAs(cluster);

@@ -4,9 +4,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
+import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.pods.GenericPod;
 import org.testpods.core.pods.external.kafka.KafkaPod;
 import org.testpods.core.pods.external.postgresql.PostgreSQLPod;
+import org.testpods.junit.RegisterCluster;
 import org.testpods.junit.TestPod;
 import org.testpods.junit.TestPods;
 
@@ -24,7 +26,8 @@ class AllInClusterIT {
   private static final String ORDER_IMAGE = "examples/order-service:test-current";
   private static final String PRODUCT_IMAGE = "examples/product-service:test-current";
 
-//  @RegisterCluster static K8sCluster cluster;
+  @RegisterCluster
+  static K8sCluster cluster;
 
   @TestPod
   static PostgreSQLPod orderDb =

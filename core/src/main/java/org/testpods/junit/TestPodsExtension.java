@@ -18,9 +18,7 @@ import java.util.Map;
 /**
  * JUnit 5 extension for TestPods lifecycle management.
  *
- * <p>This extension handles setup and cleanup of TestPod resources during test execution. It
- * ensures proper cleanup of thread-local state to prevent memory leaks in thread pool executors
- * when running tests in parallel.
+ * <p>This extension handles setup and cleanup of TestPod resources during test execution.
  *
  * <h2>Usage</h2>
  *
@@ -45,24 +43,13 @@ public class TestPodsExtension
     Provisioner provisioner = new Provisioner();
 
     @Override
-    public void beforeAll(@NonNull ExtensionContext extensionContext) throws Exception {
-        //TODO look into the enclosing test classes which may also have relevant annotations.
+    public void beforeAll(@NonNull ExtensionContext extensionContext) {
         Class<?> testClass = extensionContext.getRequiredTestClass();
         testPodsAnnotation = testClass.getAnnotation(TestPods.class);
         assert testPodsAnnotation != null : "TestPods annotation is required on the test class";
         populateAndValidateRegistry(testClass);
-
         provisioner.setRegistry(registry);
-
-        // start the cluster and ensure namespace is running.
-        provisioner.ensureClusterIsReady();
-        provisioner.ensureNamespaceIsActive();
         provisioner.provisionTestPods();
-
-        // initialize the test pods
-        // inject cluster into the test pods
-        // deploy the test pods
-        // await readiness
 
         // assign the initialized test pods to the test class fields
         assignClusterToTestClassStaticField(testClass, registry.getCluster());
@@ -77,25 +64,23 @@ public class TestPodsExtension
      * initialized.
      * If such a field is found, the registry is searched for a matching pod and assigned to the field.
      * A pod is said to be matching a @TestPod field when the field Pod type matches both the pod type and the pod name.
-     *
+     * <p>
      * Examples:
      * // This myPod field is already initialized and will not be assigned a pod.
-     * @TestPod
-     * static MyPod myPod = new MyPod();
      *
+     * @param testClass the test class to inject active pods into fields annotated with @TestPod which are not already initialized.
+     * @TestPod static MyPod myPod = new MyPod();
+     * <p>
      * // This myPod field is not initialized and will be assigned a pod from the registry with the name "MyPod".
-     * @TestPod
-     * static MyPod myPod;
-     *
+     * @TestPod static MyPod myPod;
+     * <p>
      * // This myPod field is not initialized and will be assigned a pod from the registry with the name "my-pod" that matches the podName attribute.
      * @TestPod(podName = "my-pod")
      * static MyPod myPod;
-     *
+     * <p>
      * Note that the pod name is case-sensitive and must match exactly with the pod name in the registry.
      * This applies to both the field name and the pod name in the registry.
      * Also note that the podName attribute value takes precedence over the field name when assigning a pod.
-     *
-     * @param testClass the test class to inject active pods into fields annotated with @TestPod which are not already initialized.
      */
     void assignInitializedPodsToTestClassFields(Class<?> testClass, Registry registry) {
         Map<String, Pod<?>> podsByName = registry.getPodsByName();
@@ -227,9 +212,12 @@ public class TestPodsExtension
         // Static fields in test class
         ReflectionHelper.ClusterRegistration clusterRegistration =
                 ReflectionHelper.scanClassForClusterRegistrationDetails(testClass);
+
         K8sCluster cluster = clusterRegistration != null ? clusterRegistration.cluster() : null;
+
         var testPodDeclarations = ReflectionHelper.scanTestClassForTestPodDeclarationsOnly(testClass);
         registry.addTestPodDeclarations(testPodDeclarations);
+
         var staticInitializations = ReflectionHelper.scanClassForTestPodInitializationsOnly(testClass);
         registry.addTestPodInitializations(staticInitializations);
 
@@ -242,7 +230,7 @@ public class TestPodsExtension
                         ? ProfileLifecyclePolicy.DESTROY_ON_CLOSE
                         : ProfileLifecyclePolicy.LEAVE_RUNNING);
 
-        // Provider classes — static and non-static (new behaviour for non-static)
+        // Provider classes — static and non-static
         final Class<?>[] testpodsProviders = testPodsAnnotation.testpodsProviders();
         if (testpodsProviders.length > 0) {
             // Instantiate each provider exactly once and share the instances across both scans
@@ -266,8 +254,7 @@ public class TestPodsExtension
                     cluster = providerRegistration.cluster();
                     deleteProfileAfterTests = providerRegistration.deleteProfileAfterTests();
                 } else {
-                    cluster = ReflectionHelper.scanTestPodsProvidersForClusterRegistration(
-                            testpodsProviders, providerInstances);
+                    cluster = ReflectionHelper.scanTestPodsProvidersForClusterRegistration(testpodsProviders, providerInstances);
                 }
             }
         }

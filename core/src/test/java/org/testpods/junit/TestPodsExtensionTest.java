@@ -12,8 +12,6 @@ import org.testpods.core.provisioning.GroupBuilder;
 class TestPodsExtensionTest {
 
 
-    /**
-     */
     @RegisterCluster
     static K8sCluster cluster = K8sCluster.newMinikube().withNamespace();
 
@@ -27,26 +25,20 @@ class TestPodsExtensionTest {
     static PostgreSQLPod postgresPod = new PostgreSQLPod().withDatabase("orders").inNamespace(testNS);
 
     @TestPod
-//  @DependsOn("postgres")
+    //  @DependsOn("postgres")
     static GenericPod orderService = new GenericPod("mycompany/order-service")
             .withEnv("DATABASE_URL", "${postgres.internal.uri}");
 
     @TestPod
-//  @DependsOn("infrastructure")
+    //  @DependsOn("infrastructure")
     static GenericPod inventoryService = new GenericPod("mycompany/inventory:latest")
             .withEnv("DATABASE_URL", "${postgres.internal.uri}")
             .withEnv("KAFKA_BROKERS", "${kafka.internal.bootstrapServers}");
 
-//   Experimental - can reuse the same pod definition in different groups - but is gained by having the catalog
-//   @RegisterTestPodCatalog
-//   static TestPodCatalog catalog = TestPodCatalogBuilder.newCatalog().register(kafkaPod).register(postgresPod).build();
-//   @RegisterTestPodGroup
-//   static TestPodGroup infrastructure = catalog.kafkaPod().postgresPod().asGroup();
 
     @RegisterTestPodGroup(groupName = "infrastructureGroup")
     static TestPodGroup infrastructureGroup = GroupBuilder.newGroup().add(postgresPod).add(kafkaPod).build();
 
-//  @DependsOn("infrastructureGroup")
 //  @WaitFor("infrastructureGroup")
     @RegisterTestPodGroup(groupName = "servicesGroup")
     static TestPodGroup servicesGroup = GroupBuilder.newGroup().add(orderService).add(inventoryService).dependsOn(infrastructureGroup).build();
