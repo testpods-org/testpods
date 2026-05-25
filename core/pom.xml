@@ -16,6 +16,18 @@
     <name>TestPods Core</name>
     <description>Kubernetes-native testing library for Java</description>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.testpods</groupId>
+                <artifactId>testpods-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
             <groupId>io.fabric8</groupId>
@@ -24,7 +36,6 @@
         <dependency>
             <groupId>io.fabric8</groupId>
             <artifactId>kubernetes-server-mock</artifactId>
-            <version>${fabric8.version}</version>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -35,7 +46,6 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.42</version>
         </dependency>
 
         <dependency>
@@ -49,7 +59,6 @@
         <dependency>
             <groupId>org.mongodb</groupId>
             <artifactId>mongodb-driver-sync</artifactId>
-            <version>5.5.1</version>
             <scope>compile</scope>
             <optional>true</optional>
         </dependency>
@@ -61,13 +70,17 @@
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
-            <version>3.27.6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+            <scope>test</scope>
         </dependency>
 
         <dependency>
             <groupId>org.hamcrest</groupId>
             <artifactId>hamcrest</artifactId>
-            <version>3.0</version>
             <scope>test</scope>
         </dependency>
 
@@ -75,7 +88,6 @@
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
-            <version>1.5.22</version>
             <scope>test</scope>
         </dependency>
 
@@ -83,7 +95,13 @@
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
-            <version>42.7.5</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Kafka client for KafkaPod integration tests -->
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
             <scope>test</scope>
         </dependency>
 
@@ -91,7 +109,6 @@
         <dependency>
             <groupId>org.junit.platform</groupId>
             <artifactId>junit-platform-launcher</artifactId>
-            <version>6.0.1</version>
             <scope>test</scope>
         </dependency>
 

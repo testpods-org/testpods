@@ -18,30 +18,105 @@
     <name>TestPods BOM</name>
     <description>Bill of Materials for TestPods</description>
 
+    <properties>
+        <fabric8.version>6.10.0</fabric8.version>
+        <junit.version>6.0.1</junit.version>
+        <slf4j.version>2.0.9</slf4j.version>
+        <lombok.version>1.18.42</lombok.version>
+        <mongodb-driver-sync.version>5.5.1</mongodb-driver-sync.version>
+        <assertj.version>3.27.6</assertj.version>
+        <awaitility.version>4.3.0</awaitility.version>
+        <hamcrest.version>3.0</hamcrest.version>
+        <logback.version>1.5.22</logback.version>
+        <postgresql.version>42.7.5</postgresql.version>
+        <kafka-clients.version>3.9.1</kafka-clients.version>
+    </properties>
+
     <dependencyManagement>
         <dependencies>
-            <!-- TestPods Core -->
+            <!-- TestPods modules -->
             <dependency>
                 <groupId>org.testpods</groupId>
                 <artifactId>testpods-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
-
-            <!-- Future modules -->
-            <!--
             <dependency>
                 <groupId>org.testpods</groupId>
                 <artifactId>testpods-kafka</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            -->
+            <dependency>
+                <groupId>org.testpods</groupId>
+                <artifactId>testpods-postgresql</artifactId>
+                <version>${project.version}</version>
+            </dependency>
 
+            <!-- Imported BOMs -->
             <dependency>
                 <groupId>org.junit</groupId>
                 <artifactId>junit-bom</artifactId>
-                <version>6.0.1</version>
+                <version>${junit.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Runtime and compile dependencies -->
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>kubernetes-client</artifactId>
+                <version>${fabric8.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${slf4j.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mongodb</groupId>
+                <artifactId>mongodb-driver-sync</artifactId>
+                <version>${mongodb-driver-sync.version}</version>
+            </dependency>
+
+            <!-- Test dependencies -->
+            <dependency>
+                <groupId>io.fabric8</groupId>
+                <artifactId>kubernetes-server-mock</artifactId>
+                <version>${fabric8.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.assertj</groupId>
+                <artifactId>assertj-core</artifactId>
+                <version>${assertj.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hamcrest</groupId>
+                <artifactId>hamcrest</artifactId>
+                <version>${hamcrest.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>${postgresql.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.kafka</groupId>
+                <artifactId>kafka-clients</artifactId>
+                <version>${kafka-clients.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
