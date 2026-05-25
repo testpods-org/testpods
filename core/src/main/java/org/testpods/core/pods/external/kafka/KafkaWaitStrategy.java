@@ -47,10 +47,14 @@ public class KafkaWaitStrategy implements WaitStrategy {
       }
       sleep(pollInterval);
     }
-    throw new IllegalStateException("Timed out waiting for Kafka pod to be ready");
+    throw new IllegalStateException(
+        "Timed out waiting for Kafka pod to be ready"
+            + System.lineSeparator()
+            + kafka.readinessDiagnostics());
   }
 
   private void waitForBrokerApi(KafkaPod kafka, long deadline) {
+    ExecResult lastResult = null;
     while (System.currentTimeMillis() < deadline) {
       ExecResult result =
           kafka.execInMainContainer(
@@ -63,12 +67,25 @@ public class KafkaWaitStrategy implements WaitStrategy {
                 "localhost:" + KafkaPod.INTERNAL_LISTENER_PORT,
                 "--list"
               });
+      lastResult = result;
       if (result.exitCode() == 0) {
         return;
       }
       sleep(pollInterval);
     }
-    throw new IllegalStateException("Timed out waiting for Kafka broker API");
+    String detail =
+        lastResult == null
+            ? ""
+            : System.lineSeparator()
+                + "Last exit code: "
+                + lastResult.exitCode()
+                + System.lineSeparator()
+                + "Stdout: "
+                + lastResult.stdout()
+                + System.lineSeparator()
+                + "Stderr: "
+                + lastResult.stderr();
+    throw new IllegalStateException("Timed out waiting for Kafka broker API" + detail);
   }
 
   private void sleep(Duration duration) {

@@ -1,5 +1,8 @@
 package org.testpods.core.cluster.minikube;
 
+import lombok.extern.slf4j.Slf4j;
+import org.testpods.core.cluster.ClusterException;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -7,18 +10,15 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.testpods.core.cluster.ClusterException;
 
 /** Loads locally built container images into a Minikube profile. */
+@Slf4j
 public class MinikubeImageLoader {
 
   private static final Duration LOAD_TIMEOUT = Duration.ofMinutes(5);
   private static final Duration DOCKER_PULL_TIMEOUT = Duration.ofMinutes(10);
   private static final Duration DOCKER_INSPECT_TIMEOUT = Duration.ofSeconds(30);
   private static final int STDERR_TAIL_LINES = 12;
-  private static final Logger LOG = LoggerFactory.getLogger(MinikubeImageLoader.class);
 
   private final String minikubeBinary;
   private final String dockerBinary;
@@ -78,11 +78,11 @@ public class MinikubeImageLoader {
     CommandResult inspect =
         run(List.of(dockerBinary, "image", "inspect", imageTag), DOCKER_INSPECT_TIMEOUT);
     if (inspect.exitCode() == 0) {
-      LOG.debug("Docker image {} already exists locally", imageTag);
+      log.debug("Docker image {} already exists locally", imageTag);
       return;
     }
 
-    LOG.info("Docker image {} not found locally; pulling it before loading Minikube", imageTag);
+    log.info("Docker image {} not found locally; pulling it before loading Minikube", imageTag);
     runRequired(
         List.of(dockerBinary, "pull", imageTag),
         DOCKER_PULL_TIMEOUT,

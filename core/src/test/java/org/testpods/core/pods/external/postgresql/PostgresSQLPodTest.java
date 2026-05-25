@@ -469,6 +469,22 @@ class PostgresSQLPodTest {
   }
 
   @Test
+  void buildMainContainerShouldUseDirectPostgreSQLProbeCommand() {
+    TestablePostgreSQLPod pod =
+        (TestablePostgreSQLPod)
+            new TestablePostgreSQLPod()
+                .withDatabase("orders")
+                .withUsername("orders_user");
+
+    Container container = pod.buildContainerForTest();
+
+    assertThat(container.getReadinessProbe().getExec().getCommand())
+        .containsExactly("pg_isready", "-U", "orders_user", "-d", "orders");
+    assertThat(container.getLivenessProbe().getExec().getCommand())
+        .containsExactly("pg_isready", "-U", "orders_user", "-d", "orders");
+  }
+
+  @Test
   void withPersistentDataShouldMountPostgreSQLDataVolume() {
     TestablePostgreSQLPod pod =
         (TestablePostgreSQLPod) new TestablePostgreSQLPod().withPersistentData("2Gi");

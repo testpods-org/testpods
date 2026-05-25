@@ -2,7 +2,6 @@ package org.testpods.core.pods;
 
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.client.KubernetesClient;
-import io.fabric8.kubernetes.client.dsl.ExecListener;
 import io.fabric8.kubernetes.client.dsl.ExecWatch;
 import io.fabric8.kubernetes.client.dsl.PodResource;
 import java.io.ByteArrayOutputStream;
@@ -17,9 +16,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import lombok.extern.slf4j.Slf4j;
@@ -274,8 +274,6 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
   public ExecResult exec(String containerName, String... command) {
     ByteArrayOutputStream stdout = new ByteArrayOutputStream();
     ByteArrayOutputStream stderr = new ByteArrayOutputStream();
-    CountDownLatch latch = new CountDownLatch(1);
-    int[] exitCode = {-1};
 
     PodResource podResource = getPodResource();
 
@@ -285,48 +283,25 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
                 .inContainer(containerName)
                 .writingOutput(stdout)
                 .writingError(stderr)
-                .usingListener(createExecListener(latch, exitCode))
                 .exec(command)
             : podResource
                 .writingOutput(stdout)
                 .writingError(stderr)
-                .usingListener(createExecListener(latch, exitCode))
                 .exec(command);
 
     try {
-      boolean completed = latch.await(30, TimeUnit.SECONDS);
-      if (!completed) {
-        throw new IllegalStateException("Command execution timed out");
-      }
+      int exitCode = watch.exitCode().get(30, TimeUnit.SECONDS);
+      return new ExecResult(exitCode, stdout.toString(), stderr.toString());
     } catch (InterruptedException e) {
       Thread.currentThread().interrupt();
       throw new IllegalStateException("Interrupted while executing command", e);
+    } catch (ExecutionException e) {
+      throw new IllegalStateException("Command execution failed", e);
+    } catch (TimeoutException e) {
+      throw new IllegalStateException("Command execution timed out", e);
     } finally {
       watch.close();
     }
-
-    return new ExecResult(exitCode[0], stdout.toString(), stderr.toString());
-  }
-
-  private ExecListener createExecListener(CountDownLatch latch, int[] exitCode) {
-    return new ExecListener() {
-      @Override
-      public void onOpen() {
-        // Connection opened
-      }
-
-      @Override
-      public void onFailure(Throwable t, Response response) {
-        exitCode[0] = -1;
-        latch.countDown();
-      }
-
-      @Override
-      public void onClose(int code, String reason) {
-        exitCode[0] = code;
-        latch.countDown();
-      }
-    };
   }
 
   // =============================================================
@@ -505,6 +480,11 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
    * names, credentials metadata, or other developer-facing runtime details.
    */
   protected List<String> buildCustomDeploymentDetailLines() {
+    return List.of();
+  }
+
+  /** Build Service customizers for this pod. Subclasses can override for workload-specific needs. */
+  protected List<UnaryOperator<ServiceBuilder>> buildServiceCustomizers() {
     return List.of();
   }
 
@@ -815,6 +795,7 @@ public abstract class BaseManagedPod<SELF extends BaseManagedPod<SELF>> implemen
               .ports(exposedPorts)
               .labels(buildLabels())
               .selector(java.util.Map.of("app", name))
+              .customizers(buildServiceCustomizers())
               .nodePort(getConfiguredFixedPortOrNull(getInternalPort()))
               .nodePorts(fixedExposedPorts)
               .client(client)

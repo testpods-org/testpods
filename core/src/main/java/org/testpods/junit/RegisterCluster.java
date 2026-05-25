@@ -12,6 +12,15 @@ public @interface RegisterCluster {
     String value() default "";
     String profile() default "";
 
+    /**
+     * Whether TestPods should delete the Minikube profile when the test class finishes.
+     */
+    boolean deleteProfileAfterTests() default true;
+
+    /**
+     * @deprecated Use {@link #deleteProfileAfterTests()}.
+     */
+    @Deprecated
     boolean stopAfterTest() default false;
 
     boolean deleteNamespaceAfterTest() default true;

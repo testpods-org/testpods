@@ -46,6 +46,11 @@ public abstract class DeploymentPod<SELF extends DeploymentPod<SELF>> extends Ba
   }
 
   @Override
+  protected List<UnaryOperator<ServiceBuilder>> buildServiceCustomizers() {
+    return List.copyOf(serviceCustomizers);
+  }
+
+  @Override
   public String getExternalHost() {
     return getExternalEndpoint(getInternalPort()).host();
   }

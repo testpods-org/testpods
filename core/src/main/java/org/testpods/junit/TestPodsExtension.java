@@ -4,6 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.extension.*;
 import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.ProfileLifecyclePolicy;
 import org.testpods.core.pods.Pod;
 import org.testpods.core.pods.TestPodDefaults;
 import org.testpods.core.provisioning.Provisioner;
@@ -224,11 +225,22 @@ public class TestPodsExtension
 
     void populateAndValidateRegistry(Class<?> testClass) {
         // Static fields in test class
-        K8sCluster cluster = ReflectionHelper.scanClassForClusterRegistration(testClass);
+        ReflectionHelper.ClusterRegistration clusterRegistration =
+                ReflectionHelper.scanClassForClusterRegistrationDetails(testClass);
+        K8sCluster cluster = clusterRegistration != null ? clusterRegistration.cluster() : null;
         var testPodDeclarations = ReflectionHelper.scanTestClassForTestPodDeclarationsOnly(testClass);
         registry.addTestPodDeclarations(testPodDeclarations);
         var staticInitializations = ReflectionHelper.scanClassForTestPodInitializationsOnly(testClass);
         registry.addTestPodInitializations(staticInitializations);
+
+        boolean deleteProfileAfterTests =
+                clusterRegistration != null
+                        ? clusterRegistration.deleteProfileAfterTests()
+                        : testPodsAnnotation.deleteProfileAfterTests();
+        registry.setProfileLifecyclePolicy(
+                deleteProfileAfterTests
+                        ? ProfileLifecyclePolicy.DESTROY_ON_CLOSE
+                        : ProfileLifecyclePolicy.LEAVE_RUNNING);
 
         // Provider classes — static and non-static (new behaviour for non-static)
         final Class<?>[] testpodsProviders = testPodsAnnotation.testpodsProviders();
@@ -247,8 +259,16 @@ public class TestPodsExtension
                             testpodsProviders, providerInstances);
             registry.addTestPodInitializations(providedInitializations);
             if (cluster == null) {
-                cluster = ReflectionHelper.scanTestPodsProvidersForClusterRegistration(
-                        testpodsProviders, providerInstances);
+                ReflectionHelper.ClusterRegistration providerRegistration =
+                        ReflectionHelper.scanTestPodsProvidersForClusterRegistrationDetails(
+                                testpodsProviders, providerInstances);
+                if (providerRegistration != null) {
+                    cluster = providerRegistration.cluster();
+                    deleteProfileAfterTests = providerRegistration.deleteProfileAfterTests();
+                } else {
+                    cluster = ReflectionHelper.scanTestPodsProvidersForClusterRegistration(
+                            testpodsProviders, providerInstances);
+                }
             }
         }
         registry.setCluster(cluster);

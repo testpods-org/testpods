@@ -8,7 +8,7 @@ org.testpods.core/
 │
 ├── cluster/
 │   ├── K8sCluster.java             # Interface + implementations (Minikube, Kind, etc.)
-│   └── ExternalAccessStrategy.java # Interface + implementations (PortForward, NodePort, etc.)
+│   └── ExternalAccessStrategy.java # Interface + implementations (localhost/Fabric8 forwarding, etc.)
 │   └── Namespace.java              # Kubernetes namespace wrapper
 │
 ├── config/

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.EnvVar;
 import io.fabric8.kubernetes.api.model.PodSpec;
+import io.fabric8.kubernetes.api.model.ServiceBuilder;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,15 @@ class KafkaPodTest {
 
     PodSpec buildPodSpecForTest() {
       return buildPodSpec();
+    }
+
+    boolean buildsServicesThatPublishNotReadyAddresses() {
+      ServiceBuilder builder =
+          new ServiceBuilder().withNewSpec().endSpec();
+      for (var customizer : buildServiceCustomizers()) {
+        builder = customizer.apply(builder);
+      }
+      return Boolean.TRUE.equals(builder.build().getSpec().getPublishNotReadyAddresses());
     }
   }
 
@@ -53,6 +63,35 @@ class KafkaPodTest {
             KafkaPod.INTERNAL_LISTENER_PORT,
             KafkaPod.EXTERNAL_LISTENER_PORT,
             KafkaPod.CONTROLLER_LISTENER_PORT);
+  }
+
+  @Test
+  void buildMainContainerShouldUseTcpProbesAndSeparateKafkaCliFunctionFromCommand() {
+    TestableKafkaPod pod =
+        (TestableKafkaPod) new TestableKafkaPod().inNamespace(Namespace.external("test-ns", null));
+
+    Container container = pod.buildContainerForTest();
+
+    assertThat(container.getReadinessProbe().getTcpSocket().getPort().getIntVal())
+        .isEqualTo(KafkaPod.INTERNAL_LISTENER_PORT);
+    assertThat(container.getLivenessProbe().getTcpSocket().getPort().getIntVal())
+        .isEqualTo(KafkaPod.INTERNAL_LISTENER_PORT);
+    assertThat(KafkaPod.kafkaCliCommand()).contains("fi; }; cli=$(findKafkaTopics);");
+  }
+
+  @Test
+  void buildServiceCustomizersShouldPublishNotReadyAddresses() {
+    TestableKafkaPod pod = new TestableKafkaPod();
+
+    assertThat(pod.buildsServicesThatPublishNotReadyAddresses()).isTrue();
+  }
+
+  @Test
+  void externalPortsShouldReserveFixedLocalForwardMappings() {
+    KafkaPod pod = new KafkaPod().withExternalPort(31092).withUiExternalPort(31093);
+
+    assertThat(pod.getFixedExposedPort(KafkaPod.EXTERNAL_LISTENER_PORT)).hasValue(31092);
+    assertThat(pod.getFixedExposedPort(KafkaPod.UI_PORT)).hasValue(31093);
   }
 
   @Test

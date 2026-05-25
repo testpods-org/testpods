@@ -4,6 +4,7 @@ import io.fabric8.kubernetes.api.model.PodSpecBuilder;
 import java.time.Duration;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 import org.testpods.core.ExecResult;
@@ -159,8 +160,7 @@ public interface Pod<SELF extends Pod<SELF>> {
   /**
    * Request a fixed externally reachable port for a container port.
    *
-   * <p>For port-forward access this is a local host port. For NodePort access this requests a
-   * Kubernetes nodePort, which must be inside the cluster's configured NodePort range.
+   * <p>For localhost forwarding strategies this is the local host port to bind.
    */
   default SELF withFixedExposedPort(int hostPort, int containerPort) {
     throw new UnsupportedOperationException();
@@ -274,4 +274,25 @@ public interface Pod<SELF extends Pod<SELF>> {
    * naming convention: {podName}.internal.* and {podName}.external.*
    */
   void publishProperties(PropertyContext ctx);
+
+  /**
+   * Provide the shared property context before this pod starts so pod configuration can resolve
+   * values published by pods that have already started.
+   */
+  default SELF withPropertyContext(PropertyContext ctx) {
+    return self();
+  }
+
+  /**
+   * Return property keys referenced by this pod configuration, for example from environment
+   * templates such as {@code ${postgres.internal.uri}}.
+   */
+  default Set<String> getReferencedProperties() {
+    return Set.of();
+  }
+
+  @SuppressWarnings("unchecked")
+  private SELF self() {
+    return (SELF) this;
+  }
 }

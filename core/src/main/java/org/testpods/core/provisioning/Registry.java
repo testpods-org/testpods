@@ -2,8 +2,10 @@ package org.testpods.core.provisioning;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.testpods.core.PropertyContext;
 import org.testpods.core.pods.TestPodDefaults;
 import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.ProfileLifecyclePolicy;
 import org.testpods.core.pods.Pod;
 import org.testpods.junit.TestPodGroup;
 
@@ -20,18 +22,27 @@ public class Registry {
     @Getter
     K8sCluster cluster;
 
-    Map<String, Pod<?>> podsByName = new HashMap<>();
+    @Getter
+    final PropertyContext propertyContext = new PropertyContext();
+
+    ProfileLifecyclePolicy profileLifecyclePolicy = ProfileLifecyclePolicy.DESTROY_ON_CLOSE;
+
+    Map<String, Pod<?>> podsByName = new LinkedHashMap<>();
     Set<TestPodGroup> groups = new HashSet<>();
 
     Set<String> registeredNamespaceNames = new LinkedHashSet<>();
     List<Pod<?>> startedPods = new ArrayList<>();
 
     //TODO assert that all declarations have matching initializations from other classes.
-    Map<String, FieldDeclaration> testPodDeclarationsByName = new HashMap<>();
-    Map<String, FieldInitialization> testPodInitializationsByName = new HashMap<>();
+    Map<String, FieldDeclaration> testPodDeclarationsByName = new LinkedHashMap<>();
+    Map<String, FieldInitialization> testPodInitializationsByName = new LinkedHashMap<>();
 
     public void registerNamespace(String name) {
         registeredNamespaceNames.add(name);
+    }
+
+    public void setProfileLifecyclePolicy(ProfileLifecyclePolicy profileLifecyclePolicy) {
+        this.profileLifecyclePolicy = profileLifecyclePolicy;
     }
 
     public void addTestPodDeclarations(Map<String, FieldDeclaration> testPodDeclarations) {
@@ -50,8 +61,12 @@ public class Registry {
     }
 
     public void ensureClusterIsReady() {
+        ensureClusterIsReady(profileLifecyclePolicy);
+    }
+
+    public void ensureClusterIsReady(ProfileLifecyclePolicy profileLifecyclePolicy) {
         if (cluster == null) {
-            cluster = K8sCluster.discover();
+            cluster = K8sCluster.discover(profileLifecyclePolicy);
         }
         TestPodDefaults.setClusterSupplier(() -> cluster);
     }
@@ -79,7 +94,7 @@ public class Registry {
       ensureNamespaceIsActive();
 
       try {
-        for (FieldInitialization initialization : testPodInitializationsByName.values()) {
+        for (FieldInitialization initialization : orderInitializationsForStart()) {
           Object instance = initialization.instance();
           if (!(instance instanceof Pod<?> pod)) {
             log.warn(
@@ -91,12 +106,17 @@ public class Registry {
 
           String registryName = initialization.podName();
           podsByName.put(registryName, pod);
+          if (pod.getName() != null) {
+            podsByName.put(pod.getName(), pod);
+          }
           if (pod.getCluster() == null) {
             pod.inCluster(cluster);
           }
+          pod.withPropertyContext(propertyContext);
 
           log.info("Starting TestPod '{}' using {}", registryName, pod.getClass().getSimpleName());
           pod.start();
+          pod.publishProperties(propertyContext);
           startedPods.add(pod);
           log.info(
               "Started TestPod '{}' in namespace '{}' at {}:{}",
@@ -109,6 +129,85 @@ public class Registry {
         tearDown();
         throw e;
       }
+    }
+
+    List<FieldInitialization> orderInitializationsForStart() {
+      List<FieldInitialization> ordered = new ArrayList<>();
+      Map<FieldInitialization, VisitState> states = new IdentityHashMap<>();
+      List<FieldInitialization> initializations = new ArrayList<>(testPodInitializationsByName.values());
+
+      for (FieldInitialization initialization : initializations) {
+        visit(initialization, initializations, states, ordered);
+      }
+      return ordered;
+    }
+
+    private void visit(
+        FieldInitialization initialization,
+        List<FieldInitialization> initializations,
+        Map<FieldInitialization, VisitState> states,
+        List<FieldInitialization> ordered) {
+      VisitState state = states.get(initialization);
+      if (state == VisitState.VISITED) {
+        return;
+      }
+      if (state == VisitState.VISITING) {
+        throw new IllegalStateException(
+            "Cyclic TestPod property dependency involving '" + initialization.podName() + "'");
+      }
+
+      states.put(initialization, VisitState.VISITING);
+      for (FieldInitialization dependency : dependenciesOf(initialization, initializations)) {
+        visit(dependency, initializations, states, ordered);
+      }
+      states.put(initialization, VisitState.VISITED);
+      ordered.add(initialization);
+    }
+
+    private List<FieldInitialization> dependenciesOf(
+        FieldInitialization initialization, List<FieldInitialization> initializations) {
+      if (!(initialization.instance() instanceof Pod<?> pod)) {
+        return List.of();
+      }
+
+      List<FieldInitialization> dependencies = new ArrayList<>();
+      for (String propertyKey : pod.getReferencedProperties()) {
+        String podName = propertyOwner(propertyKey);
+        if (podName == null) {
+          continue;
+        }
+        FieldInitialization dependency = findInitializationForPodName(podName, initializations);
+        if (dependency != null && dependency != initialization && !dependencies.contains(dependency)) {
+          dependencies.add(dependency);
+        }
+      }
+      return dependencies;
+    }
+
+    private String propertyOwner(String propertyKey) {
+      int separator = propertyKey.indexOf('.');
+      if (separator <= 0) {
+        return null;
+      }
+      return propertyKey.substring(0, separator);
+    }
+
+    private FieldInitialization findInitializationForPodName(
+        String podName, List<FieldInitialization> initializations) {
+      for (FieldInitialization initialization : initializations) {
+        if (initialization.instance() instanceof Pod<?> pod && podName.equals(pod.getName())) {
+          return initialization;
+        }
+        if (podName.equals(initialization.podName())) {
+          return initialization;
+        }
+      }
+      return null;
+    }
+
+    private enum VisitState {
+      VISITING,
+      VISITED
     }
 
     /**

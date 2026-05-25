@@ -47,6 +47,13 @@ public class MongoDBPod extends StatefulSetPod<MongoDBPod> implements PodLifecyc
 
   private static final String DEFAULT_IMAGE = "mongo:6.0";
   private static final int DEFAULT_PORT = 27017;
+  private static final String PING_COMMAND =
+      "cli=$(command -v mongosh || command -v mongo) && "
+          + "if [ -n \"${MONGO_INITDB_ROOT_USERNAME:-}\" ]; then "
+          + "\"$cli\" --username \"$MONGO_INITDB_ROOT_USERNAME\" "
+          + "--password \"$MONGO_INITDB_ROOT_PASSWORD\" "
+          + "--authenticationDatabase admin --eval \"db.adminCommand('ping')\"; "
+          + "else \"$cli\" --eval \"db.adminCommand('ping')\"; fi";
 
   private String image = DEFAULT_IMAGE;
   private String username;
@@ -114,7 +121,7 @@ public class MongoDBPod extends StatefulSetPod<MongoDBPod> implements PodLifecyc
 
   @Override
   public MongoDBPod waitingFor(WaitStrategy strategy) {
-    return null;
+    return super.waitingFor(strategy);
   }
 
   @Override
@@ -206,7 +213,7 @@ public class MongoDBPod extends StatefulSetPod<MongoDBPod> implements PodLifecyc
                     .build())
             .withNewReadinessProbe()
             .withNewExec()
-            .withCommand("mongosh", "--eval", "db.adminCommand('ping')")
+            .withCommand("sh", "-c", mongoShellPingCommand())
             .endExec()
             .withInitialDelaySeconds(5)
             .withPeriodSeconds(10)
@@ -214,7 +221,7 @@ public class MongoDBPod extends StatefulSetPod<MongoDBPod> implements PodLifecyc
             .endReadinessProbe()
             .withNewLivenessProbe()
             .withNewExec()
-            .withCommand("mongosh", "--eval", "db.adminCommand('ping')")
+            .withCommand("sh", "-c", mongoShellPingCommand())
             .endExec()
             .withInitialDelaySeconds(30)
             .withPeriodSeconds(20)
@@ -251,5 +258,9 @@ public class MongoDBPod extends StatefulSetPod<MongoDBPod> implements PodLifecyc
   @Override
   public void preStart() {
     preloadExternalImageForMinikube(image);
+  }
+
+  static String mongoShellPingCommand() {
+    return PING_COMMAND;
   }
 }

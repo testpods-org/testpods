@@ -41,16 +41,24 @@ public interface K8sCluster extends Closeable {
    * @throws ClusterException if no cluster can be discovered
    */
   static K8sCluster discover() {
+    return discover(ProfileLifecyclePolicy.DESTROY_ON_CLOSE);
+  }
+
+  /** Create or attach to a Minikube-backed cluster, using the requested profile lifecycle. */
+  static K8sCluster discover(ProfileLifecyclePolicy profileLifecyclePolicy) {
     // Try minikit profile first (TestPods default)
     try {
-      return MinikubeCluster.create();
+      return MinikubeCluster.builder().policy(profileLifecyclePolicy).build();
     } catch (ClusterException e) {
       // minikit not running, try default minikube
     }
 
     // Try default minikube profile
     try {
-      return MinikubeCluster.withProfile("minikube");
+      return MinikubeCluster.builder()
+          .profileName("minikube")
+          .policy(profileLifecyclePolicy)
+          .build();
     } catch (ClusterException e) {
       // minikube not running either
     }

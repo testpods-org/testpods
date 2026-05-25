@@ -69,6 +69,11 @@ public abstract class StatefulSetPod<SELF extends StatefulSetPod<SELF>> extends 
   }
 
   @Override
+  protected List<UnaryOperator<ServiceBuilder>> buildServiceCustomizers() {
+    return List.copyOf(serviceCustomizers);
+  }
+
+  @Override
   public String getExternalHost() {
     if (externalAccess == null) {
       externalAccess = getExternalEndpoint(getInternalPort());

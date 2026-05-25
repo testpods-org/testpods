@@ -5,8 +5,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import org.testpods.core.PropertyContext;
 import org.testpods.core.pods.builders.ContainerSpec;
 import org.testpods.core.wait.WaitStrategy;
 
@@ -28,6 +31,7 @@ public class ContainerDefinition {
   private String imagePullPolicy;
   private String readinessPath;
   private Integer readinessPort;
+  private PropertyContext propertyContext;
 
   public ContainerDefinition withImage(String image) {
     this.image = image;
@@ -56,6 +60,19 @@ public class ContainerDefinition {
   public ContainerDefinition withEnv(Map<String, String> values) {
     this.env.putAll(values);
     return this;
+  }
+
+  public ContainerDefinition withPropertyContext(PropertyContext propertyContext) {
+    this.propertyContext = propertyContext;
+    return this;
+  }
+
+  public Set<String> getReferencedProperties() {
+    Set<String> references = new LinkedHashSet<>();
+    for (String value : env.values()) {
+      references.addAll(PropertyContext.referencesIn(value));
+    }
+    return references;
   }
 
   public ContainerDefinition withCommand(String... command) {
@@ -106,7 +123,7 @@ public class ContainerDefinition {
       spec.withArgs(args.toArray(new String[0]));
     }
     for (Map.Entry<String, String> e : env.entrySet()) {
-      spec.withEnv(e.getKey(), e.getValue());
+      spec.withEnv(e.getKey(), resolveEnvValue(e.getValue()));
     }
     for (int p : ports) {
       spec.withPort(p);
@@ -121,6 +138,10 @@ public class ContainerDefinition {
     }
 
     return spec.build();
+  }
+
+  private String resolveEnvValue(String value) {
+    return propertyContext == null ? value : propertyContext.interpolate(value);
   }
 
   public WaitStrategy deriveDefaultWaitStrategy() {

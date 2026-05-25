@@ -64,16 +64,12 @@ static PostgreSQLPod postgres =
 The meaning of the fixed port depends on the cluster access strategy:
 
 ```text
-Port-forward access:
+Localhost forwarding access:
   your JVM -> 127.0.0.1:54320 -> Service:5432 -> PostgreSQL Pod:5432
-
-NodePort / Minikube service access:
-  your JVM -> <node-ip>:54320 -> Service:5432 -> PostgreSQL Pod:5432
 ```
 
-NodePort services can only use ports from the cluster's NodePort range. Many local clusters default
-to `30000-32767`, so `54320` is usually valid for port-forward access but not for default NodePort
-access.
+For Minikube, TestPods defaults to externally managed localhost forwarding so the endpoint remains
+reachable even when the test JVM is paused in a debugger.
 
 Other pods inside Kubernetes do not need the mapped external port. They should use service DNS:
 

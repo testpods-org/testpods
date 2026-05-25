@@ -97,7 +97,7 @@ io.fabric8.kubernetes.api.model.ContainerBuilder
 | `KubeconfigCluster` | Class (package-private) | Generic kubeconfig implementation |
 | `ExternalAccessStrategy` | Interface | Strategy for external pod access |
 | `PortForwardAccessStrategy` | Class (package-private) | Port-forward implementation |
-| `NodePortAccessStrategy` | Class (package-private) | NodePort implementation |
+| `LocalhostPortForwardAccessStrategy` | Class (package-private) | External kubectl localhost forwarding implementation |
 | `LoadBalancerAccessStrategy` | Class (package-private) | LoadBalancer implementation |
 | `MinikubeServiceAccessStrategy` | Class (package-private) | Minikube service URL implementation |
 | `HostAndPort` | Record | Host:port value object |

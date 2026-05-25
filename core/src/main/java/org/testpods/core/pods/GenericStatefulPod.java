@@ -2,6 +2,7 @@ package org.testpods.core.pods;
 
 import io.fabric8.kubernetes.api.model.Container;
 import java.util.Map;
+import java.util.Set;
 import org.testpods.core.PropertyContext;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.core.wait.WaitStrategy;
@@ -64,6 +65,17 @@ public class GenericStatefulPod extends StatefulSetPod<GenericStatefulPod> {
   public GenericStatefulPod withEnv(Map<String, String> env) {
     container.withEnv(env);
     return this;
+  }
+
+  @Override
+  public GenericStatefulPod withPropertyContext(PropertyContext ctx) {
+    container.withPropertyContext(ctx);
+    return this;
+  }
+
+  @Override
+  public Set<String> getReferencedProperties() {
+    return container.getReferencedProperties();
   }
 
   public GenericStatefulPod withCommand(String... command) {

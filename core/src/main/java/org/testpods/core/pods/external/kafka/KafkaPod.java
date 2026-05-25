@@ -3,9 +3,9 @@ package org.testpods.core.pods.external.kafka;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
 import io.fabric8.kubernetes.api.model.ContainerPortBuilder;
+import io.fabric8.kubernetes.api.model.ContainerStatus;
 import io.fabric8.kubernetes.api.model.PodSpecBuilder;
-import io.fabric8.kubernetes.client.LocalPortForward;
-import java.io.IOException;
+import io.fabric8.kubernetes.api.model.ServiceBuilder;
 import java.nio.ByteBuffer;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 import lombok.extern.slf4j.Slf4j;
 import org.testpods.core.ExecResult;
@@ -67,7 +68,7 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
           + "if command -v kafka-topics >/dev/null 2>&1; then command -v kafka-topics; "
           + "elif command -v kafka-topics.sh >/dev/null 2>&1; then command -v kafka-topics.sh; "
           + "elif [ -x /opt/kafka/bin/kafka-topics.sh ]; then echo /opt/kafka/bin/kafka-topics.sh; "
-          + "else echo kafka-topics.sh; fi; }";
+          + "else echo kafka-topics.sh; fi; };";
 
   private String image = DEFAULT_IMAGE;
   private String clusterId = randomKafkaClusterId();
@@ -83,8 +84,6 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
   private final Map<String, TopicSpec> topics = new LinkedHashMap<>();
   private final Map<String, String> kafkaEnv = new LinkedHashMap<>();
   private final Map<String, String> uiEnv = new LinkedHashMap<>();
-  private volatile LocalPortForward externalPortForward;
-  private volatile LocalPortForward uiPortForward;
 
   /** Create a Kafka pod with the default Apache Kafka image. */
   public KafkaPod() {
@@ -139,6 +138,7 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
       throw new IllegalArgumentException("external Kafka port must differ from UI external port");
     }
     this.externalPort = port;
+    this.fixedExposedPorts.put(EXTERNAL_LISTENER_PORT, port);
     return this;
   }
 
@@ -198,7 +198,6 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
       this.exposedPorts.add(UI_PORT);
     } else {
       this.exposedPorts.remove(UI_PORT);
-      closeUiPortForward();
     }
     return this;
   }
@@ -224,6 +223,7 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
       throw new IllegalArgumentException("UI external port must differ from Kafka external port");
     }
     this.uiExternalPort = port;
+    this.fixedExposedPorts.put(UI_PORT, port);
     return withUi();
   }
 
@@ -333,8 +333,8 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
     if (!uiEnabled) {
       throw new IllegalStateException("Kafka UI is not enabled. Call withUi() first.");
     }
-    ensureUiPortForward();
-    return "http://" + uiExternalHost + ":" + uiExternalPort;
+    getExternalEndpoint(UI_PORT);
+    return "http://" + uiExternalHost + ":" + uiExternalPort + "/topics/?showInternal=true";
   }
 
   /** Get the bootstrap servers for test code running outside Kubernetes. */
@@ -354,13 +354,13 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
 
   @Override
   public String getExternalHost() {
-    ensureExternalPortForward();
+    getExternalEndpoint(EXTERNAL_LISTENER_PORT);
     return externalHost;
   }
 
   @Override
   public int getExternalPort() {
-    ensureExternalPortForward();
+    getExternalEndpoint(EXTERNAL_LISTENER_PORT);
     return externalPort;
   }
 
@@ -423,17 +423,17 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
                 .build())
         .withEnv(toEnvVars(env))
         .withNewReadinessProbe()
-        .withNewExec()
-        .withCommand("sh", "-c", kafkaCliReadinessCommand())
-        .endExec()
+        .withNewTcpSocket()
+        .withPort(new io.fabric8.kubernetes.api.model.IntOrString(INTERNAL_LISTENER_PORT))
+        .endTcpSocket()
         .withInitialDelaySeconds(10)
         .withPeriodSeconds(5)
         .withTimeoutSeconds(5)
         .endReadinessProbe()
         .withNewLivenessProbe()
-        .withNewExec()
-        .withCommand("sh", "-c", kafkaCliReadinessCommand())
-        .endExec()
+        .withNewTcpSocket()
+        .withPort(new io.fabric8.kubernetes.api.model.IntOrString(INTERNAL_LISTENER_PORT))
+        .endTcpSocket()
         .withInitialDelaySeconds(30)
         .withPeriodSeconds(10)
         .withTimeoutSeconds(5)
@@ -456,8 +456,21 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
 
   @Override
   protected ServiceManager createServiceManager() {
+    fixedExposedPorts.putIfAbsent(EXTERNAL_LISTENER_PORT, externalPort);
+    if (uiEnabled) {
+      fixedExposedPorts.putIfAbsent(UI_PORT, uiExternalPort);
+    }
     return new CompositeServiceManager(new ClusterIPServiceManager(), new HeadlessServiceManager())
         .withSuffixes("", "-headless");
+  }
+
+  @Override
+  protected List<UnaryOperator<ServiceBuilder>> buildServiceCustomizers() {
+    List<UnaryOperator<ServiceBuilder>> customizers = new ArrayList<>(super.buildServiceCustomizers());
+    customizers.add(
+        service ->
+            service.editOrNewSpec().withPublishNotReadyAddresses(true).endSpec());
+    return customizers;
   }
 
   @Override
@@ -470,9 +483,9 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
 
   @Override
   public void postStart() {
-    ensureExternalPortForward();
+    getExternalEndpoint(EXTERNAL_LISTENER_PORT);
     if (uiEnabled) {
-      ensureUiPortForward();
+      getExternalEndpoint(UI_PORT);
     }
     createTopics();
     log.info("Kafka TestPod '{}' is ready", name);
@@ -490,8 +503,7 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
 
   @Override
   public void preStop() {
-    closeUiPortForward();
-    closeExternalPortForward();
+    // External endpoints are owned by the cluster access strategy and cleaned up by BaseManagedPod.
   }
 
   @Override
@@ -500,7 +512,7 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
     lines.add("kafka.image: " + image);
     lines.add("kafka.bootstrapServers: " + getBootstrapServers());
     lines.add("kafka.internalBootstrapServers: " + getInternalBootstrapServers());
-    lines.add("kafka.externalListener: " + externalHost + ":" + externalPort);
+    lines.add("kafka.externalListener: " + getBootstrapServers());
     lines.add("kafka.internalListener: " + getInternalHost() + ":" + INTERNAL_LISTENER_PORT);
     lines.add("kafka.topics: " + getTopics());
     if (uiEnabled) {
@@ -634,96 +646,76 @@ public class KafkaPod extends StatefulSetPod<KafkaPod> implements PodLifecycleHo
     return exec(command);
   }
 
-  private synchronized void ensureExternalPortForward() {
-    if (externalPortForward != null) {
-      return;
-    }
-    if (cluster == null || namespace == null) {
-      throw new IllegalStateException(
-          "Kafka pod " + name + " is not started; external endpoint is unavailable");
-    }
+  String readinessDiagnostics() {
+    List<String> lines = new ArrayList<>();
     try {
-      externalPortForward =
-          getClient()
-              .services()
-              .inNamespace(namespace.getName())
-              .withName(name)
-              .portForward(EXTERNAL_LISTENER_PORT, externalPort);
+      var pods =
+          getClient().pods().inNamespace(namespace.getName()).withLabel("app", name).list().getItems();
+      if (pods.isEmpty()) {
+        return "No Kubernetes pod found with label app=" + name;
+      }
+      for (var pod : pods) {
+        lines.add("pod: " + pod.getMetadata().getName());
+        if (pod.getStatus() == null) {
+          lines.add("  status: <none>");
+          continue;
+        }
+        lines.add("  phase: " + pod.getStatus().getPhase());
+        if (pod.getStatus().getContainerStatuses() != null) {
+          for (ContainerStatus status : pod.getStatus().getContainerStatuses()) {
+            lines.add(
+                "  container "
+                    + status.getName()
+                    + ": ready="
+                    + status.getReady()
+                    + ", restarts="
+                    + status.getRestartCount()
+                    + ", state="
+                    + summarizeContainerState(status));
+          }
+        }
+      }
+      lines.add("kafka logs:");
+      lines.add(truncateForDiagnostics(getLogs("kafka"), 4000));
     } catch (Exception e) {
-      throw new IllegalStateException(
-          "Failed to create local port-forward for Kafka on "
-              + externalHost
-              + ":"
-              + externalPort
-              + ". Choose another port with withExternalPort(...).",
-          e);
+      lines.add("Could not collect Kafka readiness diagnostics: " + e.getMessage());
     }
-  }
-
-  private synchronized void closeExternalPortForward() {
-    if (externalPortForward == null) {
-      return;
-    }
-    try {
-      externalPortForward.close();
-    } catch (IOException e) {
-      log.debug("Failed to close Kafka port-forward for '{}': {}", name, e.getMessage());
-    } finally {
-      externalPortForward = null;
-    }
-  }
-
-  private synchronized void ensureUiPortForward() {
-    if (uiPortForward != null) {
-      return;
-    }
-    if (!uiEnabled) {
-      throw new IllegalStateException("Kafka UI is not enabled. Call withUi() first.");
-    }
-    if (cluster == null || namespace == null) {
-      throw new IllegalStateException(
-          "Kafka pod " + name + " is not started; UI endpoint is unavailable");
-    }
-    try {
-      uiPortForward =
-          getClient()
-              .services()
-              .inNamespace(namespace.getName())
-              .withName(name)
-              .portForward(UI_PORT, uiExternalPort);
-    } catch (Exception e) {
-      throw new IllegalStateException(
-          "Failed to create local port-forward for Kafka UI on "
-              + uiExternalHost
-              + ":"
-              + uiExternalPort
-              + ". Choose another port with withUiExternalPort(...).",
-          e);
-    }
-  }
-
-  private synchronized void closeUiPortForward() {
-    if (uiPortForward == null) {
-      return;
-    }
-    try {
-      uiPortForward.close();
-    } catch (IOException e) {
-      log.debug("Failed to close Kafka UI port-forward for '{}': {}", name, e.getMessage());
-    } finally {
-      uiPortForward = null;
-    }
-  }
-
-  private static String kafkaCliReadinessCommand() {
-    return FIND_KAFKA_TOPICS_FUNCTION
-        + " cli=$(findKafkaTopics); \"$cli\" --bootstrap-server localhost:"
-        + INTERNAL_LISTENER_PORT
-        + " --list >/dev/null";
+    return String.join(System.lineSeparator(), lines);
   }
 
   static String kafkaCliCommand() {
     return FIND_KAFKA_TOPICS_FUNCTION + " " + TOPIC_COMMAND;
+  }
+
+  private static String summarizeContainerState(ContainerStatus status) {
+    if (status.getState() == null) {
+      return "<none>";
+    }
+    if (status.getState().getWaiting() != null) {
+      return "waiting("
+          + status.getState().getWaiting().getReason()
+          + ": "
+          + status.getState().getWaiting().getMessage()
+          + ")";
+    }
+    if (status.getState().getRunning() != null) {
+      return "running(startedAt=" + status.getState().getRunning().getStartedAt() + ")";
+    }
+    if (status.getState().getTerminated() != null) {
+      return "terminated("
+          + status.getState().getTerminated().getReason()
+          + ", exitCode="
+          + status.getState().getTerminated().getExitCode()
+          + ")";
+    }
+    return status.getState().toString();
+  }
+
+  private static String truncateForDiagnostics(String text, int maxLength) {
+    if (text == null || text.length() <= maxLength) {
+      return text;
+    }
+    return text.substring(text.length() - maxLength);
   }
 
   private static String toKafkaEnvName(String property) {

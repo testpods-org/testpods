@@ -20,5 +20,13 @@ public @interface TestPods {
      */
     boolean deleteNamespaceAfterTests() default true;
 
+    /**
+     * Whether TestPods should delete the Minikube profile when the test class finishes.
+     *
+     * <p>Set this to {@code false} when you want profile-level state such as loaded images to
+     * survive across test reruns.
+     */
+    boolean deleteProfileAfterTests() default true;
+
     Class<?>[] testpodsProviders() default {};
 }

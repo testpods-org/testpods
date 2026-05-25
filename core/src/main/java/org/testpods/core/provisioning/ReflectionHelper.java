@@ -16,6 +16,8 @@ import org.testpods.junit.TestPod;
 @Slf4j
 public class ReflectionHelper {
 
+    public record ClusterRegistration(K8sCluster cluster, boolean deleteProfileAfterTests) {}
+
     /**
      * Scans the given classes for a static field annotated with {@link RegisterCluster} that is
      * initialized with a {@link K8sCluster} instance. Classes are scanned in order; the first
@@ -34,16 +36,35 @@ public class ReflectionHelper {
     }
 
     /**
+     * Scans the given classes for a {@link RegisterCluster}-annotated field and returns the first
+     * matching cluster plus its lifecycle flag.
+     */
+    public static ClusterRegistration scanClassForClusterRegistrationDetails(Class<?>... classes) {
+        for (Class<?> clazz : classes) {
+            ClusterRegistration registration = scanClassForClusterRegistrationDetails(clazz, null);
+            if (registration != null) return registration;
+        }
+        return null;
+    }
+
+    /**
      * Scans one class for a {@link RegisterCluster}-annotated field.
      *
      * @param instance null → static fields only; non-null → non-static fields only
      */
     public static K8sCluster scanClassForClusterRegistration(Class<?> clazz, Object instance) {
+        ClusterRegistration registration = scanClassForClusterRegistrationDetails(clazz, instance);
+        return registration != null ? registration.cluster() : null;
+    }
+
+    private static ClusterRegistration scanClassForClusterRegistrationDetails(
+            Class<?> clazz, Object instance) {
         boolean scanStatic = (instance == null);
         for (Field field : clazz.getDeclaredFields()) {
             if (!field.isAnnotationPresent(RegisterCluster.class)) continue;
             boolean isStatic = Modifier.isStatic(field.getModifiers());
             if (isStatic != scanStatic) continue;
+            RegisterCluster annotation = field.getAnnotation(RegisterCluster.class);
             if (!K8sCluster.class.isAssignableFrom(field.getType())) {
                 log.warn(
                         "Field '{}' in {} is annotated with @RegisterCluster but its type {} does not implement K8sCluster — skipping",
@@ -69,14 +90,14 @@ public class ReflectionHelper {
                         "@RegisterCluster field '{}' in {} is null — cluster will be resolved by provisioning",
                         field.getName(),
                         clazz.getSimpleName());
-                continue;
+                return new ClusterRegistration(null, annotation.deleteProfileAfterTests());
             }
             log.debug(
                     "Found @RegisterCluster field: {} {} in {}",
                     field.getType().getSimpleName(),
                     field.getName(),
                     clazz.getSimpleName());
-            return (K8sCluster) value;
+            return new ClusterRegistration((K8sCluster) value, annotation.deleteProfileAfterTests());
         }
         return null;
     }
@@ -339,6 +360,20 @@ public class ReflectionHelper {
         return scanTestPodsProvidersForClusterRegistration(testpodsProviders, instances);
     }
 
+    public static ClusterRegistration scanTestPodsProvidersForClusterRegistrationDetails(
+            Class<?>[] testpodsProviders, Map<Class<?>, Object> instances) {
+        for (Class<?> provider : testpodsProviders) {
+            ClusterRegistration registration = scanClassForClusterRegistrationDetails(provider, null);
+            if (registration != null) return registration;
+            Object instance = instances.get(provider);
+            if (instance != null) {
+                registration = scanClassForClusterRegistrationDetails(provider, instance);
+                if (registration != null) return registration;
+            }
+        }
+        return null;
+    }
+
     /**
      * Scans each provider class for a {@link RegisterCluster}-annotated field using
      * already-created provider instances. Returns the first cluster found, or {@code null}.
@@ -349,15 +384,8 @@ public class ReflectionHelper {
      */
     public static K8sCluster scanTestPodsProvidersForClusterRegistration(
             Class<?>[] testpodsProviders, Map<Class<?>, Object> instances) {
-        for (Class<?> provider : testpodsProviders) {
-            K8sCluster cluster = scanClassForClusterRegistration(provider, null);
-            if (cluster != null) return cluster;
-            Object instance = instances.get(provider);
-            if (instance != null) {
-                cluster = scanClassForClusterRegistration(provider, instance);
-                if (cluster != null) return cluster;
-            }
-        }
-        return null;
+        ClusterRegistration registration =
+                scanTestPodsProvidersForClusterRegistrationDetails(testpodsProviders, instances);
+        return registration != null ? registration.cluster() : null;
     }
 }

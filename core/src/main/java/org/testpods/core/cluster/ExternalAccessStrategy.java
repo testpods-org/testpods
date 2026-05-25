@@ -4,10 +4,20 @@ import io.fabric8.kubernetes.api.model.Service;
 import io.fabric8.kubernetes.api.model.ServicePort;
 import io.fabric8.kubernetes.client.KubernetesClient;
 import io.fabric8.kubernetes.client.LocalPortForward;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
+import java.net.Socket;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
 import org.testpods.core.pods.Pod;
 
 /**
@@ -16,7 +26,7 @@ import org.testpods.core.pods.Pod;
  * <p>Different cluster types require different access methods:
  *
  * <ul>
- *   <li>Minikube: {@code minikube service} command or NodePort
+ *   <li>Minikube: localhost forwarding or {@code minikube service}
  *   <li>Kind: Port forwarding (no external IP)
  *   <li>Remote/Cloud: LoadBalancer or Ingress
  * </ul>
@@ -50,11 +60,23 @@ public interface ExternalAccessStrategy {
   }
 
   /**
-   * Use NodePort services to access pods. Requires the cluster nodes to be reachable from test
-   * code.
+   * Use an external {@code kubectl port-forward} process to expose pod endpoints on localhost.
+   *
+   * <p>Unlike {@link #portForward()}, the byte relay does not run inside the test JVM. This is
+   * useful for debug sessions where suspending JVM threads must not break browser or CLI access to
+   * the forwarded ports.
    */
-  static ExternalAccessStrategy nodePort() {
-    return new NodePortAccessStrategy();
+  static ExternalAccessStrategy localhostPortForward() {
+    return new LocalhostPortForwardAccessStrategy(null);
+  }
+
+  /**
+   * Use an external {@code kubectl port-forward} process against a specific kube context.
+   *
+   * @param kubeContext kubeconfig context passed as {@code kubectl --context <context>}
+   */
+  static ExternalAccessStrategy localhostPortForward(String kubeContext) {
+    return new LocalhostPortForwardAccessStrategy(kubeContext);
   }
 
   /** Use LoadBalancer services to access pods. Requires cloud provider or MetalLB. */
@@ -160,79 +182,176 @@ class PortForwardAccessStrategy implements ExternalAccessStrategy {
 }
 
 // =============================================================
-// NodePortAccessStrategy
+// LocalhostPortForwardAccessStrategy
 // =============================================================
 
 /**
- * Uses NodePort services to access pods. Requires the Service to be of type NodePort and cluster
- * nodes to be reachable.
+ * Uses an external {@code kubectl port-forward} process to create localhost forwards.
+ *
+ * <p>The forwarding process is outside the test JVM. If a debugger suspends all JVM threads,
+ * already-started {@code kubectl} forwards continue to serve browser and CLI traffic.
  */
-class NodePortAccessStrategy implements ExternalAccessStrategy {
+@Slf4j
+class LocalhostPortForwardAccessStrategy implements ExternalAccessStrategy {
 
-  private String nodeIp;
+  private static final Duration START_TIMEOUT = Duration.ofSeconds(20);
 
-  /** Create with auto-detected node IP. */
-  NodePortAccessStrategy() {
-    this.nodeIp = null; // Will be detected from cluster
-  }
+  private final String kubeContext;
+  private final Map<String, ForwardProcess> activeForwards = new ConcurrentHashMap<>();
 
-  /** Create with explicit node IP. */
-  NodePortAccessStrategy(String nodeIp) {
-    this.nodeIp = nodeIp;
+  LocalhostPortForwardAccessStrategy(String kubeContext) {
+    this.kubeContext = kubeContext == null || kubeContext.isBlank() ? null : kubeContext;
   }
 
   @Override
   public HostAndPort getExternalEndpoint(Pod<?> pod, int internalPort) {
-    KubernetesClient client = pod.getCluster().getClient();
-
-    // Get the service
-    Service service =
-        client.services().inNamespace(pod.getNamespace().getName()).withName(pod.getName()).get();
-
-    if (service == null) {
-      throw new IllegalStateException("Service not found: " + pod.getName());
-    }
-
-    // Find the NodePort for the requested internal port
-    Integer nodePort = null;
-    for (ServicePort port : service.getSpec().getPorts()) {
-      if (port.getPort().equals(internalPort)) {
-        nodePort = port.getNodePort();
-        break;
-      }
-    }
-
-    if (nodePort == null) {
-      throw new IllegalStateException(
-          "NodePort not found for port "
-              + internalPort
-              + " on service "
-              + pod.getName()
-              + ". Ensure the service is of type NodePort.");
-    }
-
-    // Get node IP if not set
-    if (nodeIp == null) {
-      nodeIp = detectNodeIp(client);
-    }
-
-    return new HostAndPort(nodeIp, nodePort);
+    String key = pod.getNamespace().getName() + "/" + pod.getName() + ":" + internalPort;
+    return activeForwards
+        .computeIfAbsent(key, ignored -> startForward(pod, internalPort))
+        .endpoint();
   }
 
-  private String detectNodeIp(KubernetesClient client) {
-    // Try to get the first node's internal IP
-    var nodes = client.nodes().list().getItems();
-    if (!nodes.isEmpty()) {
-      var addresses = nodes.get(0).getStatus().getAddresses();
-      for (var addr : addresses) {
-        if ("InternalIP".equals(addr.getType())) {
-          return addr.getAddress();
-        }
+  @Override
+  public void cleanup(Pod<?> pod) {
+    String keyPrefix = pod.getNamespace().getName() + "/" + pod.getName() + ":";
+    activeForwards
+        .entrySet()
+        .removeIf(
+            entry -> {
+              if (!entry.getKey().startsWith(keyPrefix)) {
+                return false;
+              }
+              entry.getValue().stop();
+              return true;
+            });
+  }
+
+  private ForwardProcess startForward(Pod<?> pod, int internalPort) {
+    int localPort = pod.getFixedExposedPort(internalPort).orElseGet(this::findAvailablePort);
+    HostAndPort endpoint = HostAndPort.localhost(localPort);
+    List<String> command = kubectlPortForwardCommand(pod, internalPort, localPort);
+
+    try {
+      Process process =
+          new ProcessBuilder(command)
+              .redirectErrorStream(true)
+              .start();
+      consumeOutput(process, command);
+      waitUntilListening(process, endpoint, command);
+      log.info(
+          "Started localhost port-forward for {}/{}: {} -> {} using: {}",
+          pod.getNamespace().getName(),
+          pod.getName(),
+          endpoint,
+          internalPort,
+          String.join(" ", command));
+      return new ForwardProcess(endpoint, process, command);
+    } catch (IOException e) {
+      throw new IllegalStateException(
+          "Failed to start localhost port-forward with command: " + String.join(" ", command), e);
+    }
+  }
+
+  private List<String> kubectlPortForwardCommand(Pod<?> pod, int internalPort, int localPort) {
+    List<String> command = new ArrayList<>();
+    command.add("kubectl");
+    if (kubeContext != null) {
+      command.add("--context");
+      command.add(kubeContext);
+    }
+    command.add("-n");
+    command.add(pod.getNamespace().getName());
+    command.add("port-forward");
+    command.add("svc/" + pod.getName());
+    command.add(localPort + ":" + internalPort);
+    return command;
+  }
+
+  private void waitUntilListening(Process process, HostAndPort endpoint, List<String> command) {
+    long deadline = System.nanoTime() + START_TIMEOUT.toNanos();
+    while (System.nanoTime() < deadline) {
+      if (!process.isAlive()) {
+        throw new IllegalStateException(
+            "kubectl port-forward exited before "
+                + endpoint
+                + " was reachable. Command: "
+                + String.join(" ", command));
+      }
+      if (canConnect(endpoint)) {
+        return;
+      }
+      try {
+        Thread.sleep(100);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        process.destroy();
+        throw new IllegalStateException(
+            "Interrupted while waiting for localhost port-forward: " + String.join(" ", command),
+            e);
       }
     }
 
-    // Fallback to localhost (works for minikube with tunnel)
-    return "127.0.0.1";
+    process.destroy();
+    throw new IllegalStateException(
+        "Timed out waiting for localhost port-forward "
+            + endpoint
+            + ". Command: "
+            + String.join(" ", command));
+  }
+
+  private boolean canConnect(HostAndPort endpoint) {
+    try (Socket socket = new Socket()) {
+      socket.connect(new InetSocketAddress(endpoint.host(), endpoint.port()), 500);
+      return true;
+    } catch (IOException e) {
+      return false;
+    }
+  }
+
+  private void consumeOutput(Process process, List<String> command) {
+    Thread reader =
+        new Thread(
+            () -> {
+              try (BufferedReader lines =
+                  new BufferedReader(
+                      new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                while ((line = lines.readLine()) != null) {
+                  log.debug("kubectl port-forward [{}]: {}", String.join(" ", command), line);
+                }
+              } catch (IOException e) {
+                log.debug("Stopped reading kubectl port-forward output: {}", e.getMessage());
+              }
+            },
+            "testpods-kubectl-port-forward-output");
+    reader.setDaemon(true);
+    reader.start();
+  }
+
+  private int findAvailablePort() {
+    try (ServerSocket socket = new ServerSocket(0)) {
+      socket.setReuseAddress(true);
+      return socket.getLocalPort();
+    } catch (IOException e) {
+      throw new IllegalStateException("Failed to find available local port", e);
+    }
+  }
+
+  private record ForwardProcess(HostAndPort endpoint, Process process, List<String> command) {
+    void stop() {
+      if (!process.isAlive()) {
+        return;
+      }
+      process.destroy();
+      try {
+        if (!process.waitFor(5, TimeUnit.SECONDS)) {
+          process.destroyForcibly();
+        }
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        process.destroyForcibly();
+      }
+    }
   }
 }
 
@@ -327,37 +446,9 @@ class MinikubeServiceAccessStrategy implements ExternalAccessStrategy {
             String withoutProtocol = url.trim().replaceFirst("https?://", "");
             return HostAndPort.parse(withoutProtocol);
           } catch (ClusterException e) {
-            // Fallback to NodePort strategy (matches the previous IOException/InterruptedException
-            // behaviour — any CLI failure falls back).
-            return fallbackToNodePort(pod, internalPort);
+            throw new IllegalStateException(
+                "Could not determine minikube service URL for " + pod.getName(), e);
           }
         });
-  }
-
-  private HostAndPort fallbackToNodePort(Pod<?> pod, int internalPort) {
-    String minikubeIp;
-    try {
-      minikubeIp = cli.nodeIp(profileName);
-    } catch (ClusterException e) {
-      minikubeIp = "192.168.49.2"; // Common default
-    }
-    if (minikubeIp == null || minikubeIp.isEmpty()) {
-      minikubeIp = "192.168.49.2"; // Common default
-    }
-
-    // Get NodePort from service
-    KubernetesClient client = pod.getCluster().getClient();
-    Service service =
-        client.services().inNamespace(pod.getNamespace().getName()).withName(pod.getName()).get();
-
-    if (service != null) {
-      for (ServicePort port : service.getSpec().getPorts()) {
-        if (port.getPort().equals(internalPort) && port.getNodePort() != null) {
-          return new HostAndPort(minikubeIp.trim(), port.getNodePort());
-        }
-      }
-    }
-
-    throw new RuntimeException("Could not determine external endpoint for " + pod.getName());
   }
 }

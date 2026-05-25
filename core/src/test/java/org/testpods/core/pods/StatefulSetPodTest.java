@@ -5,9 +5,14 @@ import static org.assertj.core.api.Assertions.*;
 import io.fabric8.kubernetes.api.model.Container;
 import io.fabric8.kubernetes.api.model.ContainerBuilder;
 import io.fabric8.kubernetes.api.model.ContainerPortBuilder;
+import io.fabric8.kubernetes.client.KubernetesClient;
 import org.junit.jupiter.api.Test;
 import org.testpods.core.PropertyContext;
+import org.testpods.core.cluster.ExternalAccessStrategy;
 import org.testpods.core.cluster.HostAndPort;
+import org.testpods.core.cluster.K8sCluster;
+import org.testpods.core.cluster.Namespace;
+import org.testpods.core.service.ServiceManager;
 import org.testpods.core.wait.WaitStrategy;
 
 /**
@@ -56,6 +61,68 @@ class StatefulSetPodTest {
     void setExternalAccessForTest(HostAndPort hostAndPort) {
       this.externalAccess = hostAndPort;
     }
+
+    ServiceManager createServiceManagerForTest() {
+      return createServiceManager();
+    }
+
+    void setClusterForTest(K8sCluster cluster) {
+      this.cluster = cluster;
+    }
+  }
+
+  static class StubCluster implements K8sCluster {
+    private final ExternalAccessStrategy accessStrategy;
+
+    StubCluster(ExternalAccessStrategy accessStrategy) {
+      this.accessStrategy = accessStrategy;
+    }
+
+    @Override
+    public KubernetesClient getClient() {
+      return null;
+    }
+
+    @Override
+    public ExternalAccessStrategy getAccessStrategy() {
+      return accessStrategy;
+    }
+
+    @Override
+    public Namespace getDefaultNamespace() {
+      return null;
+    }
+
+    @Override
+    public Namespace getNamespace(String name) {
+      return null;
+    }
+
+    @Override
+    public Namespace createNamespace(String name) {
+      return null;
+    }
+
+    @Override
+    public Namespace createNamespace() {
+      return null;
+    }
+
+    @Override
+    public Namespace attachNamespace(String name) {
+      return null;
+    }
+
+    @Override
+    public void deleteNamespace(String name) {}
+
+    @Override
+    public K8sCluster withNamespace() {
+      return this;
+    }
+
+    @Override
+    public void close() {}
   }
 
   // =============================================================
@@ -186,4 +253,5 @@ class StatefulSetPodTest {
     assertThatThrownBy(() -> pod.withFixedExposedPort(30432, 0))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
 }

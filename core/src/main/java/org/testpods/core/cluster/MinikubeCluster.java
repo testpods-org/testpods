@@ -64,7 +64,11 @@ public class MinikubeCluster implements K8sCluster, MinikubeImageLoadTarget, Clo
   private Optional<MinikitCli.DashboardProxy> dashboardProxy = Optional.empty();
   private Namespace defaultNamespace;
 
-  private MinikubeCluster(String profileName, ProfileLifecyclePolicy policy, MinikitCli cli) {
+  private MinikubeCluster(
+      String profileName,
+      ProfileLifecyclePolicy policy,
+      MinikitCli cli,
+      ExternalAccessStrategy accessStrategy) {
     this.profileName = profileName;
     this.cli = cli;
     Preflight.verify();
@@ -92,7 +96,7 @@ public class MinikubeCluster implements K8sCluster, MinikubeImageLoadTarget, Clo
     this.client = createAndPingClient(profileName);
     this.policy = ownsProfile ? policy : ProfileLifecyclePolicy.LEAVE_RUNNING;
     this.namespaces = new HashMap<>();
-    this.accessStrategy = ExternalAccessStrategy.portForward();
+    this.accessStrategy = accessStrategy;
     Namespace namespace = createNamespace();
     log.info(
         "Created TestPods namespace {} in minikube profile {}", namespace.getName(), profileName);
@@ -485,6 +489,7 @@ public class MinikubeCluster implements K8sCluster, MinikubeImageLoadTarget, Clo
     private String profileName = DEFAULT_PROFILE_NAME;
     private ProfileLifecyclePolicy policy = ProfileLifecyclePolicy.DESTROY_ON_CLOSE;
     private MinikitCli cli = new MinikitCli();
+    private ExternalAccessStrategy accessStrategy;
 
     private Builder() {}
 
@@ -520,8 +525,29 @@ public class MinikubeCluster implements K8sCluster, MinikubeImageLoadTarget, Clo
       return this;
     }
 
+    /** Use a specific strategy for pod endpoints reachable from test code. */
+    public Builder accessStrategy(ExternalAccessStrategy accessStrategy) {
+      this.accessStrategy = accessStrategy;
+      return this;
+    }
+
+    /**
+     * Expose pod endpoints on localhost with external {@code kubectl port-forward} processes.
+     *
+     * <p>The forwarding processes are not Fabric8 {@code LocalPortForward}s and do not run inside
+     * the test JVM, so they keep serving traffic while the JVM is suspended in a debugger.
+     */
+    public Builder localhostPortForwardAccess() {
+      this.accessStrategy = null;
+      return this;
+    }
+
     public MinikubeCluster build() {
-      return new MinikubeCluster(profileName, policy, cli);
+      ExternalAccessStrategy resolvedAccessStrategy =
+          accessStrategy != null
+              ? accessStrategy
+              : ExternalAccessStrategy.localhostPortForward(profileName);
+      return new MinikubeCluster(profileName, policy, cli, resolvedAccessStrategy);
     }
   }
 }

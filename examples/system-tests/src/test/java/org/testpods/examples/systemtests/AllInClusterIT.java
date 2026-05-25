@@ -55,10 +55,10 @@ class AllInClusterIT {
           .withName("product-service")
           .withPort(8082)
           .withExposedPorts(8082)
-          .withEnv("SPRING_DATASOURCE_URL", "jdbc:postgresql://productdb:5432/productdb")
-          .withEnv("SPRING_DATASOURCE_USERNAME", "product_user")
-          .withEnv("SPRING_DATASOURCE_PASSWORD", "product_pass")
-          .withEnv("SPRING_KAFKA_BOOTSTRAP_SERVERS", "kafka:9092");
+          .withEnv("SPRING_DATASOURCE_URL", "${productdb.internal.uri}")
+          .withEnv("SPRING_DATASOURCE_USERNAME", "${productdb.username}")
+          .withEnv("SPRING_DATASOURCE_PASSWORD", "${productdb.password}")
+          .withEnv("SPRING_KAFKA_BOOTSTRAP_SERVERS", "${kafka.internal.bootstrapServers}");
 
   @TestPod
   static GenericPod orderService =
@@ -66,11 +66,11 @@ class AllInClusterIT {
           .withName("order-service")
           .withPort(8081)
           .withExposedPorts(8081)
-          .withEnv("SPRING_DATASOURCE_URL", "jdbc:postgresql://orderdb:5432/orderdb")
-          .withEnv("SPRING_DATASOURCE_USERNAME", "order_user")
-          .withEnv("SPRING_DATASOURCE_PASSWORD", "order_pass")
-          .withEnv("SPRING_KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
-          .withEnv("PRODUCT_SERVICE_BASE_URL", "http://product-service:8082");
+          .withEnv("SPRING_DATASOURCE_URL", "${orderdb.internal.uri}")
+          .withEnv("SPRING_DATASOURCE_USERNAME", "${orderdb.username}")
+          .withEnv("SPRING_DATASOURCE_PASSWORD", "${orderdb.password}")
+          .withEnv("SPRING_KAFKA_BOOTSTRAP_SERVERS", "${kafka.internal.bootstrapServers}")
+          .withEnv("PRODUCT_SERVICE_BASE_URL", "${product-service.internal.url}");
 
   @Test
   void placeOrderAndDecrementStock() {

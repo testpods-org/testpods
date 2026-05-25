@@ -80,6 +80,17 @@ public class GenericPod extends DeploymentPod<GenericPod> implements PodLifecycl
     return this;
   }
 
+  @Override
+  public GenericPod withPropertyContext(PropertyContext ctx) {
+    container.withPropertyContext(ctx);
+    return this;
+  }
+
+  @Override
+  public Set<String> getReferencedProperties() {
+    return container.getReferencedProperties();
+  }
+
   public GenericPod withCommand(String... command) {
     container.withCommand(command);
     return this;
