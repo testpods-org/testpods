@@ -1,23 +1,22 @@
 package org.testpods.examples.systemtests;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.awaitility.Awaitility.await;
+import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.client.RestClient;
+import org.testpods.core.pods.GenericPod;
+import org.testpods.core.pods.external.kafka.KafkaPod;
+import org.testpods.core.pods.external.postgresql.PostgreSQLPod;
+import org.testpods.junit.TestPod;
+import org.testpods.junit.TestPods;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
-import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.client.RestClient;
-import org.testpods.core.cluster.K8sCluster;
-import org.testpods.core.pods.GenericPod;
-import org.testpods.core.pods.external.kafka.KafkaPod;
-import org.testpods.core.pods.external.postgresql.PostgreSQLPod;
-import org.testpods.junit.RegisterCluster;
-import org.testpods.junit.TestPod;
-import org.testpods.junit.TestPods;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 @TestPods
 class AllInClusterIT {
