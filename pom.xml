@@ -14,14 +14,6 @@
     <description>Kubernetes-native testing library for Java</description>
     <url>https://testpods.org</url>
 
-    <licenses>
-        <license>
-            <name>Apache License, Version 2.0</name>
-            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
     <developers>
         <developer>
             <id>henrik</id>
@@ -30,7 +22,6 @@
             <url>https://github.com/testpods-org</url>
         </developer>
     </developers>
-
     <scm>
         <connection>scm:git:git://github.com/testpods-org/testpods.git</connection>
         <developerConnection>scm:git:ssh://github.com:testpods-org/testpods.git</developerConnection>
@@ -53,7 +44,6 @@
 
     <build>
         <plugins>
-            <!-- Central Publishing Plugin -->
             <plugin>
                 <groupId>org.sonatype.central</groupId>
                 <artifactId>central-publishing-maven-plugin</artifactId>
