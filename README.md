@@ -89,27 +89,6 @@ class TestPodsExtension {}
 ### [TestPodsExtension](core/src/main/java/org/testpods/junit/TestPodsExtension.java)
   
 
-### Test pod classes
-
-```
-<interface>
-   Pod
-    │
-    ▼
-<abstract>
-BaseManagedPod
-    │
-    ├───────────────────────────────┬
-    │                               │
-    ▼                               ▼
-<abstract>                       <abstract>
-StatefulSetPod                   DeploymentPod
-    │                                   │
-    ├─────────┬                         ├─────────┬
-    ▼         ▼                         ▼         ▼
-MongoDBPod  GenericStatefulPod     ServicePod  GenericPod
-```
-
 ### [KafkaPod IT](core/src/test/java/org/testpods/core/pods/external/kafka/KafkaPodIT.java)
 
 ### Example System-tests

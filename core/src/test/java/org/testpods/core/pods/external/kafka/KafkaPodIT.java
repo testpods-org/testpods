@@ -25,11 +25,11 @@ import org.testpods.junit.TestPods;
 /**
  * Integration tests proving KafkaPod starts and exposes Kafka plus its Redpanda Console UI.
  */
-@TestPods(deleteProfileAfterTests = false)
+@TestPods(deleteProfileAfterTests = false, deleteNamespaceAfterTests = true)
 @Slf4j
 public class KafkaPodIT {
 
-    private static final boolean HOLD_PODS_OPEN = true;
+    private static final boolean HOLD_PODS_OPEN = false;
 
     @RegisterCluster()
     static K8sCluster cluster;
