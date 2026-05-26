@@ -1,22 +1,19 @@
 package org.testpods.core.provisioning;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
 import lombok.extern.slf4j.Slf4j;
 import org.testpods.core.cluster.K8sCluster;
 import org.testpods.junit.RegisterCluster;
 import org.testpods.junit.TestPod;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.*;
+
 @Slf4j
 public class ReflectionHelper {
 
-    public record ClusterRegistration(K8sCluster cluster, boolean deleteProfileAfterTests) {}
+    public record ClusterRegistration(K8sCluster cluster, boolean deleteProfileAfterTests) {
+    }
 
     /**
      * Scans the given classes for a static field annotated with {@link RegisterCluster} that is
@@ -102,7 +99,8 @@ public class ReflectionHelper {
         return null;
     }
 
-    private record ResolvedTestPodField(Field field, TestPod annotation, Object value) {}
+    private record ResolvedTestPodField(Field field, TestPod annotation, Object value) {
+    }
 
     /**
      * @param instance null → static fields only; non-null → non-static fields only
@@ -193,10 +191,7 @@ public class ReflectionHelper {
 
         for (ResolvedTestPodField resolved : resolveTestPodFields(clazz, null)) {
             if (resolved.value() == null) {
-                log.debug(
-                        "Field '{}' in {} has no initializer — not an initialization field",
-                        resolved.field().getName(),
-                        clazz.getSimpleName());
+                logFieldHasNoInitializer(clazz, resolved);
                 continue;
             }
 
@@ -209,17 +204,18 @@ public class ReflectionHelper {
                             clazz,
                             Modifier.isPrivate(resolved.field().getModifiers()),
                             resolved.value());
-            initialization.typedInstance();
             initializationsByPodNamePrefixedWithClassName.put(initialization.podNamePrefixedWithClassName(), initialization);
-            log.debug(
-                    "Found @TestPod initialized field: {} {} = {} (podName='{}')",
-                    resolved.field().getType().getSimpleName(),
-                    resolved.field().getName(),
-                    resolved.value().getClass().getSimpleName(),
-                    initialization.podName());
+            logFieldHasInitializer(resolved, initialization);
         }
 
         return initializationsByPodNamePrefixedWithClassName;
+    }
+
+    private static void logFieldHasNoInitializer(Class<?> clazz, ResolvedTestPodField resolved) {
+        log.debug(
+                "Field '{}' in {} has no initializer — not an initialization field",
+                resolved.field().getName(),
+                clazz.getSimpleName());
     }
 
     /**
@@ -230,10 +226,7 @@ public class ReflectionHelper {
         Map<String, FieldInitialization> initializationsByPodNamePrefixedWithClassName = new LinkedHashMap<>();
         for (ResolvedTestPodField resolved : resolveTestPodFields(clazz, instance)) {
             if (resolved.value() == null) {
-                log.debug(
-                        "Field '{}' in {} has no initializer — not an initialization field",
-                        resolved.field().getName(),
-                        clazz.getSimpleName());
+                logFieldHasNoInitializer(clazz, resolved);
                 continue;
             }
             FieldInitialization initialization =
@@ -248,14 +241,19 @@ public class ReflectionHelper {
             initialization.typedInstance();
             initializationsByPodNamePrefixedWithClassName.put(
                     initialization.podNamePrefixedWithClassName(), initialization);
-            log.debug(
-                    "Found @TestPod initialized field: {} {} = {} (podName='{}')",
-                    resolved.field().getType().getSimpleName(),
-                    resolved.field().getName(),
-                    resolved.value().getClass().getSimpleName(),
-                    initialization.podName());
+
+            logFieldHasInitializer(resolved, initialization);
         }
         return initializationsByPodNamePrefixedWithClassName;
+    }
+
+    private static void logFieldHasInitializer(ResolvedTestPodField resolved, FieldInitialization initialization) {
+        log.debug(
+                "Found @TestPod initialized field: {} {} = {} (podName='{}')",
+                resolved.field().getType().getSimpleName(),
+                resolved.field().getName(),
+                resolved.value().getClass().getSimpleName(),
+                initialization.podName());
     }
 
     /**
@@ -271,10 +269,7 @@ public class ReflectionHelper {
             constructor.setAccessible(true);
             return constructor.newInstance();
         } catch (Exception e) {
-            log.warn(
-                    "Cannot instantiate {} for non-static field scanning — non-static fields will be skipped: {}",
-                    clazz.getSimpleName(),
-                    e.getMessage());
+            log.warn("Cannot instantiate {} for non-static field scanning — non-static fields will be skipped: {}", clazz.getSimpleName(), e.getMessage());
             return null;
         }
     }
@@ -329,8 +324,8 @@ public class ReflectionHelper {
      * scans for both pod initializations and cluster registration during {@code beforeAll}).
      *
      * @param testpodsProviders provider classes to scan
-     * @param instances map from provider class to its pre-created instance; providers missing
-     *                  from the map have only their static fields scanned
+     * @param instances         map from provider class to its pre-created instance; providers missing
+     *                          from the map have only their static fields scanned
      */
     public static Map<String, FieldInitialization> scanTestPodsProvidersForAllTestPodInitializers(
             Class<?>[] testpodsProviders, Map<Class<?>, Object> instances) {
@@ -379,8 +374,8 @@ public class ReflectionHelper {
      * already-created provider instances. Returns the first cluster found, or {@code null}.
      *
      * @param testpodsProviders provider classes to scan
-     * @param instances map from provider class to its pre-created instance; providers missing
-     *                  from the map have only their static fields scanned
+     * @param instances         map from provider class to its pre-created instance; providers missing
+     *                          from the map have only their static fields scanned
      */
     public static K8sCluster scanTestPodsProvidersForClusterRegistration(
             Class<?>[] testpodsProviders, Map<Class<?>, Object> instances) {

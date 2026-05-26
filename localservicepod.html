@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LocalServicePod — Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f7f5f0;
+    --surface:   #ffffff;
+    --border:    #e4e0d8;
+    --text:      #2c2825;
+    --muted:     #7a7068;
+    --accent:    #5c6bc0;
+    --accent-lt: #eef0fb;
+    --code-bg:   #f0ede6;
+    --step-num:  #c8c0b4;
+    --tag-bg:    #e8f5e9;
+    --tag-fg:    #2e7d32;
+    --note-bg:   #fff8e1;
+    --note-fg:   #f57f17;
+    --warn-bg:   #fce4ec;
+    --warn-fg:   #c62828;
+    --info-bg:   #e3f2fd;
+    --info-fg:   #1565c0;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    min-height: 100vh;
+  }
+
+  .wrapper {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 0 32px 120px;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 64px 0 48px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 64px;
+  }
+
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-family: 'Lora', serif;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+
+  .subtitle {
+    font-size: 17px;
+    color: var(--muted);
+    font-weight: 300;
+    max-width: 600px;
+  }
+
+  /* ── Overview banner ── */
+  .overview {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 4px solid var(--accent);
+    border-radius: 0 12px 12px 0;
+    padding: 22px 26px;
+    margin-bottom: 56px;
+    font-size: 15px;
+    color: #4a4540;
+    line-height: 1.85;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity .4s ease, transform .4s ease;
+  }
+  .overview.visible { opacity: 1; transform: translateY(0); }
+
+  /* ── Section blocks (non-numbered) ── */
+  .section {
+    margin-bottom: 40px;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity .45s ease, transform .45s ease;
+  }
+  .section.visible { opacity: 1; transform: translateY(0); }
+
+  /* ── Phase label ── */
+  .phase-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 60px 0 24px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .phase-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    transition: box-shadow .2s;
+  }
+  .section:hover .card { box-shadow: 0 4px 20px rgba(0,0,0,.07); }
+
+  .card h2 {
+    font-family: 'Lora', serif;
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+
+  .card p {
+    font-size: 15px;
+    color: #4a4540;
+    line-height: 1.8;
+    margin-bottom: 10px;
+  }
+  .card p:last-child { margin-bottom: 0; }
+
+  .card ul {
+    list-style: none;
+    margin: 8px 0 10px;
+  }
+  .card ul li {
+    font-size: 14.5px;
+    color: #4a4540;
+    padding: 3px 0 3px 20px;
+    position: relative;
+  }
+  .card ul li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--step-num);
+  }
+
+  /* ── Two-column port layout ── */
+  .port-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 14px 0;
+  }
+  @media (max-width: 560px) { .port-grid { grid-template-columns: 1fr; } }
+
+  .port-card {
+    background: var(--accent-lt);
+    border: 1px solid #d0d5f0;
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .port-card .port-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .port-card .port-desc {
+    font-size: 13.5px;
+    color: #4a4540;
+    line-height: 1.6;
+  }
+
+  /* ── DNS / address semantics table ── */
+  .semantics-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 14px;
+  }
+  .semantics-table th {
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 6px 12px 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .semantics-table td {
+    padding: 9px 12px 9px 0;
+    border-bottom: 1px solid var(--border);
+    color: #4a4540;
+    vertical-align: top;
+  }
+  .semantics-table tr:last-child td { border-bottom: none; }
+  .semantics-table td code { font-size: 12.5px; }
+  .semantics-table .method { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--accent); }
+
+  /* ── Unsupported features list ── */
+  .unsupported-list {
+    list-style: none;
+    margin: 10px 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .unsupported-list li {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    background: var(--warn-bg);
+    color: var(--warn-fg);
+    border-radius: 6px;
+    padding: 4px 10px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .unsupported-list li::before { content: '✕'; font-size: 10px; }
+
+  /* ── Callouts ── */
+  .note {
+    background: var(--note-bg);
+    border-left: 3px solid var(--note-fg);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13.5px;
+    color: #5a4500;
+    font-style: italic;
+  }
+  .info {
+    background: var(--info-bg);
+    border-left: 3px solid var(--info-fg);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13.5px;
+    color: #0d3c6e;
+  }
+  .warn {
+    background: var(--warn-bg);
+    border-left: 3px solid var(--warn-fg);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13.5px;
+    color: #7a0000;
+    font-style: italic;
+  }
+
+  /* ── Diagram ── */
+  .diagram {
+    background: #f9f8f5;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 16px 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: #4a4540;
+    line-height: 2;
+    overflow-x: auto;
+  }
+  .diagram .arrow { color: var(--accent); }
+  .diagram .highlight { color: #2e7d32; font-weight: 500; }
+  .diagram .dim { color: var(--step-num); }
+
+  /* ── Source ref pill ── */
+  .source {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-lt);
+    border-radius: 6px;
+    padding: 4px 10px;
+  }
+  .source::before { content: '↗'; font-size: 10px; }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: #5a3e28;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 13px;
+    color: var(--step-num);
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <p class="label">TestPods · Local Development</p>
+    <h1>LocalServicePod</h1>
+    <p class="subtitle">Expose a service running on your developer machine to in-cluster clients — without deploying a container.</p>
+  </header>
+
+  <div class="overview animate">
+    <code>LocalServicePod</code> is not a normal "run a container in Kubernetes" pod. Its job is to expose a service already running on the developer's machine to in-cluster clients by creating Kubernetes networking resources that point back to the host machine. The workload itself lives on your laptop; the pod only provisions the Kubernetes routing layer.
+    <br><br>
+    <span class="source" style="margin-top:0">LocalServicePod.java:29–100</span>
+  </div>
+
+  <!-- ── WHAT MAKES IT DIFFERENT ── -->
+  <div class="phase-label">What Makes It Different</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Selector-less Service + Manual Endpoints</h2>
+      <p>Instead of a standard workload-backed Service, <code>LocalServicePod</code> creates two resources manually:</p>
+      <ul>
+        <li>A <strong>ClusterIP Service with no selector</strong> — Kubernetes will not attempt to route traffic to any in-cluster pods.</li>
+        <li>A <strong>manually managed Endpoints object</strong> whose address is set to the developer host's IP.</li>
+      </ul>
+      <div class="diagram">
+        <span class="highlight">In-cluster caller</span>
+        <span class="arrow"> → </span><span class="highlight">name.namespace.svc.cluster.local</span>
+        <br>
+        <span class="dim">                  ↓  ClusterIP Service (no selector)</span>
+        <br>
+        <span class="dim">                  ↓  Endpoints { ip: &lt;host IP&gt;, port: hostPort }</span>
+        <br>
+        <span class="arrow">               → </span><span class="highlight">localhost:hostPort</span><span class="dim">  (your laptop)</span>
+      </div>
+      <p>In-cluster callers use the normal DNS name <code>name.namespace.svc.cluster.local</code>, but traffic is forwarded to the local machine instead of an in-cluster workload.</p>
+      <span class="source">LocalServicePod.java:190–228</span>
+    </div>
+  </div>
+
+  <!-- ── PORT CONFIGURATION ── -->
+  <div class="phase-label">Port Configuration</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Two Ports to Configure</h2>
+      <p>You configure the bridge with exactly two port declarations:</p>
+      <div class="port-grid">
+        <div class="port-card">
+          <div class="port-name">onHostPort(…)</div>
+          <div class="port-desc">The port your local service listens on. Written into the Endpoints object as the target address.</div>
+        </div>
+        <div class="port-card">
+          <div class="port-name">exposingServicePort(…)</div>
+          <div class="port-desc">The port the cluster-side Service exposes to in-cluster callers.</div>
+        </div>
+      </div>
+      <p>The Service is created with <code>port = exposingServicePort</code> and <code>targetPort = hostPort</code>, and the Endpoints object carries the host IP paired with <code>hostPort</code>.</p>
+    </div>
+  </div>
+
+  <!-- ── STARTUP SEQUENCE ── -->
+  <div class="phase-label">Startup Sequence</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Host IP Resolution</h2>
+      <p>On <code>start()</code>, after resolving cluster and namespace defaults, the pod resolves a routable host IP:</p>
+      <ul>
+        <li>Prefers <code>host.minikube.internal</code> — the standard hostname Minikube exposes for host access.</li>
+        <li>Falls back to <code>InetAddress.getLocalHost()</code> if that hostname is not reachable.</li>
+      </ul>
+      <div class="note">Kubernetes Endpoints require an IP literal, not a DNS name. The resolved address is written directly into the endpoint object — not a hostname.</div>
+      <span class="source">LocalServicePod.java:394–414</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Resource Creation &amp; Partial-Failure Cleanup</h2>
+      <p>Once the host IP is resolved, two Kubernetes resources are created in order:</p>
+      <ul>
+        <li>A <strong>ClusterIP Service</strong> with <code>port = exposingServicePort</code>, <code>targetPort = hostPort</code>.</li>
+        <li>An <strong>Endpoints object</strong> with the host IP and <code>port = hostPort</code>.</li>
+      </ul>
+      <div class="warn">If creation fails partway through, the pod performs a best-effort deletion of both resources — so you are never left with a broken Service/Endpoints pair in your namespace.</div>
+      <span class="source">LocalServicePod.java:230–249</span>
+    </div>
+  </div>
+
+  <!-- ── UNSUPPORTED FEATURES ── -->
+  <div class="phase-label">Unsupported Features</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Container-Oriented APIs Are Not Available</h2>
+      <p>Because <code>LocalServicePod</code> does not schedule an in-cluster workload, container-oriented features throw at runtime:</p>
+      <ul class="unsupported-list">
+        <li>withResources(…)</li>
+        <li>withInitContainer(…)</li>
+        <li>withSidecar(…)</li>
+        <li>withPodCustomizer(…)</li>
+        <li>waitingFor(…)</li>
+        <li>getLogs()</li>
+        <li>exec()</li>
+      </ul>
+      <p><code>getLogs()</code> and <code>exec()</code> are also unsupported because there is no in-cluster container to inspect.</p>
+      <span class="source">LocalServicePod.java:142–165, 293–320</span>
+    </div>
+  </div>
+
+  <!-- ── SEMANTICS ── -->
+  <div class="phase-label">Address &amp; State Semantics</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Host / Port / Readiness Methods</h2>
+      <p>The accessor methods follow a consistent mapping that reflects the two-sided nature of the bridge:</p>
+      <table class="semantics-table">
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Returns</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="method">getInternalHost()</td>
+            <td><code>name.namespace.svc.cluster.local</code> — the in-cluster DNS name</td>
+          </tr>
+          <tr>
+            <td class="method">getInternalPort()</td>
+            <td><code>exposingServicePort</code> — what in-cluster callers connect to</td>
+          </tr>
+          <tr>
+            <td class="method">getExternalHost()</td>
+            <td><code>localhost</code> — always, unconditionally</td>
+          </tr>
+          <tr>
+            <td class="method">getExternalPort()</td>
+            <td><code>hostPort</code> — the port your local service listens on</td>
+          </tr>
+          <tr>
+            <td class="method">isRunning() / isReady()</td>
+            <td>Returns the <em>started flag</em> only — not a live pod health check</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="info"><code>isRunning()</code> and <code>isReady()</code> reflect whether the resources were successfully created, not whether the local service is actually healthy.</div>
+      <span class="source">LocalServicePod.java:283–375</span>
+    </div>
+  </div>
+
+  <!-- ── TESTABILITY ── -->
+  <div class="phase-label">Testability</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>KubernetesGateway Seam for Unit Tests</h2>
+      <p>A small <code>KubernetesGateway</code> interface is injected between <code>LocalServicePod</code> and the real Kubernetes client. This seam lets tests supply a fake gateway and assert on the exact Service and Endpoints objects that would be created — without requiring a live cluster.</p>
+      <p>This is why unit tests can verify the precise generated resource content in isolation.</p>
+      <span class="source">LocalServicePod.java:488–520 · LocalServicePodTest.java:34–78</span>
+    </div>
+  </div>
+
+  <footer>TestPods · LocalServicePod Reference · Generated documentation</footer>
+
+</div>
+
+<script>
+  const animItems = document.querySelectorAll('.section, .overview');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 55);
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.1 });
+  animItems.forEach(el => io.observe(el));
+</script>
+</body>
+</html>

@@ -46,7 +46,6 @@ public class TestPodsExtension
     public void beforeAll(@NonNull ExtensionContext extensionContext) {
         Class<?> testClass = extensionContext.getRequiredTestClass();
         testPodsAnnotation = testClass.getAnnotation(TestPods.class);
-        assert testPodsAnnotation != null : "TestPods annotation is required on the test class";
         populateAndValidateRegistry(testClass);
         provisioner.setRegistry(registry);
         provisioner.provisionTestPods();
