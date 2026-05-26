@@ -510,16 +510,7 @@ public class MinikubeCluster implements K8sCluster, MinikubeImageLoadTarget, Clo
       this.policy = policy;
       return this;
     }
-
-    /**
-     * @deprecated Use {@link #policy(ProfileLifecyclePolicy)}.
-     */
-    @Deprecated
-    public Builder policy(NodeLifecyclePolicy policy) {
-      this.policy = ProfileLifecyclePolicy.valueOf(policy.name());
-      return this;
-    }
-
+    
     Builder cli(MinikitCli cli) {
       this.cli = cli;
       return this;
