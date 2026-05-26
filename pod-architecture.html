@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pod Architecture — TestPods Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #f7f5f0;
+    --surface:   #ffffff;
+    --border:    #e4e0d8;
+    --text:      #2c2825;
+    --muted:     #7a7068;
+    --accent:    #5c6bc0;
+    --accent-lt: #eef0fb;
+    --code-bg:   #f0ede6;
+    --step-num:  #c8c0b4;
+    --note-bg:   #fff8e1;
+    --note-fg:   #f57f17;
+    --warn-bg:   #fce4ec;
+    --warn-fg:   #c62828;
+    --info-bg:   #e3f2fd;
+    --info-fg:   #1565c0;
+    --green-bg:  #e8f5e9;
+    --green-fg:  #2e7d32;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.75;
+    min-height: 100vh;
+  }
+
+  .wrapper {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 32px 120px;
+  }
+
+  /* ── Header ── */
+  header {
+    padding: 64px 0 48px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 64px;
+  }
+  .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 16px;
+  }
+  h1 {
+    font-family: 'Lora', serif;
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 500;
+    line-height: 1.2;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+  .subtitle {
+    font-size: 17px;
+    color: var(--muted);
+    font-weight: 300;
+    max-width: 620px;
+  }
+
+  /* ── Phase label ── */
+  .phase-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    font-weight: 500;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 60px 0 24px 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .phase-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── Animate ── */
+  .section {
+    margin-bottom: 28px;
+    opacity: 0;
+    transform: translateY(18px);
+    transition: opacity .45s ease, transform .45s ease;
+  }
+  .section.visible { opacity: 1; transform: translateY(0); }
+
+  /* ── Card ── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 28px;
+    transition: box-shadow .2s;
+  }
+  .section:hover .card { box-shadow: 0 4px 20px rgba(0,0,0,.07); }
+
+  .card h2 {
+    font-family: 'Lora', serif;
+    font-size: 18px;
+    font-weight: 500;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+  .card h3 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: .07em;
+    color: var(--muted);
+    margin: 20px 0 8px;
+  }
+  .card h3:first-of-type { margin-top: 14px; }
+  .card p {
+    font-size: 15px;
+    color: #4a4540;
+    line-height: 1.8;
+    margin-bottom: 10px;
+  }
+  .card p:last-child { margin-bottom: 0; }
+  .card ul {
+    list-style: none;
+    margin: 8px 0 10px;
+  }
+  .card ul li {
+    font-size: 14.5px;
+    color: #4a4540;
+    padding: 3px 0 3px 20px;
+    position: relative;
+    line-height: 1.7;
+  }
+  .card ul li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--step-num);
+  }
+
+  code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 1px 6px;
+    color: #5a3e28;
+  }
+
+  /* ── Source pill ── */
+  .source {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: var(--accent-lt);
+    border-radius: 6px;
+    padding: 4px 10px;
+  }
+  .source::before { content: '↗'; font-size: 10px; }
+  .source + .source { margin-left: 6px; }
+
+  /* ── Callouts ── */
+  .note {
+    background: var(--note-bg);
+    border-left: 3px solid var(--note-fg);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13.5px;
+    color: #5a4500;
+    font-style: italic;
+  }
+  .info {
+    background: var(--info-bg);
+    border-left: 3px solid var(--info-fg);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13.5px;
+    color: #0d3c6e;
+  }
+  .warn {
+    background: var(--warn-bg);
+    border-left: 3px solid var(--warn-fg);
+    border-radius: 0 8px 8px 0;
+    padding: 10px 14px;
+    margin-top: 12px;
+    font-size: 13.5px;
+    color: #7a0000;
+  }
+
+  /* ── Architecture layer diagram ── */
+  .layer-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 16px 0;
+  }
+  .layer {
+    border-radius: 8px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+  }
+  .layer-l1 { background: #e8eaf6; border: 1px solid #c5cae9; }
+  .layer-l2 { background: #e3f2fd; border: 1px solid #bbdefb; margin: 0 16px; }
+  .layer-l3 { background: #e8f5e9; border: 1px solid #c8e6c9; margin: 0 32px; }
+  .layer-l4 { background: #fff8e1; border: 1px solid #ffe082; margin: 0 48px; }
+  .layer-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+    min-width: 160px;
+  }
+  .layer-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+  .layer-arrow {
+    text-align: center;
+    color: var(--step-num);
+    font-size: 14px;
+    margin: 0 8px;
+    line-height: 1;
+  }
+
+  /* ── Step list (numbered) ── */
+  .step-list {
+    counter-reset: steps;
+    list-style: none;
+    margin: 12px 0;
+  }
+  .step-list li {
+    counter-increment: steps;
+    display: flex;
+    gap: 12px;
+    font-size: 14.5px;
+    color: #4a4540;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--border);
+    line-height: 1.65;
+  }
+  .step-list li:last-child { border-bottom: none; }
+  .step-list li::before {
+    content: counter(steps);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent);
+    background: var(--accent-lt);
+    border-radius: 50%;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  /* ── Resource summary cards ── */
+  .pod-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin: 16px 0;
+  }
+  @media (max-width: 600px) { .pod-grid { grid-template-columns: 1fr; } }
+
+  .pod-card {
+    background: #fafaf8;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .pod-card.outlier {
+    border-color: #c5cae9;
+    background: var(--accent-lt);
+  }
+  .pod-card .pod-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .pod-card .pod-name.accent { color: var(--accent); }
+  .resource-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    margin: 2px 2px 2px 0;
+  }
+  .rt-deploy  { background: #e3f2fd; color: #1565c0; }
+  .rt-ss      { background: var(--green-bg); color: var(--green-fg); }
+  .rt-svc     { background: #f3e5f5; color: #6a1b9a; }
+  .rt-svc-hl  { background: #fce4ec; color: #880e4f; }
+  .rt-cm      { background: #fff3e0; color: #e65100; }
+  .rt-pvc     { background: #e8eaf6; color: #283593; }
+  .rt-ep      { background: #e0f2f1; color: #00695c; }
+  .pod-card .pod-note {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 8px;
+    font-style: italic;
+    line-height: 1.5;
+  }
+
+  /* ── Wait strategy table ── */
+  .wait-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    margin: 12px 0;
+  }
+  .wait-table th {
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 6px 12px 6px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .wait-table td {
+    padding: 9px 12px 9px 0;
+    border-bottom: 1px solid var(--border);
+    color: #4a4540;
+    vertical-align: top;
+    line-height: 1.6;
+  }
+  .wait-table tr:last-child td { border-bottom: none; }
+  .wait-table .cls { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--accent); }
+
+  /* ── Big class table ── */
+  .class-table-wrap {
+    overflow-x: auto;
+    margin: 16px 0;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .class-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+  }
+  .class-table thead th {
+    background: #f0ede6;
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  .class-table tbody tr:nth-child(even) td { background: #faf9f6; }
+  .class-table tbody tr:hover td { background: var(--accent-lt); }
+  .class-table td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: #4a4540;
+    vertical-align: top;
+    line-height: 1.6;
+  }
+  .class-table tbody tr:last-child td { border-bottom: none; }
+  .class-table .cls-name {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    white-space: nowrap;
+  }
+  .class-table .workload-cell { font-size: 13px; }
+
+  /* ── Bottom-line summary row ── */
+  .summary-row {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 14px 0;
+  }
+  .summary-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 14px;
+    color: #4a4540;
+  }
+  .summary-item .s-key {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--accent);
+    white-space: nowrap;
+    min-width: 200px;
+  }
+
+  footer {
+    text-align: center;
+    font-size: 13px;
+    color: var(--step-num);
+    margin-top: 80px;
+    padding-top: 32px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+
+  <header>
+    <p class="label">TestPods · Core</p>
+    <h1>Pod Architecture</h1>
+    <p class="subtitle">A complete reference for the pod class hierarchy, Kubernetes resource ownership, start/stop flow, wait strategies, and the builder layer.</p>
+  </header>
+
+  <!-- ── ARCHITECTURE ── -->
+  <div class="phase-label">Class Hierarchy</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Template-Method Stack</h2>
+      <p>The package is built as a layered template-method hierarchy. Each layer narrows responsibility:</p>
+      <div class="layer-stack">
+        <div class="layer layer-l1">
+          <div class="layer-name">Pod</div>
+          <div class="layer-desc">User-facing contract — configuration, lifecycle, ports, logs, properties</div>
+        </div>
+        <div class="layer-arrow">↓</div>
+        <div class="layer layer-l2">
+          <div class="layer-name">BaseManagedPod</div>
+          <div class="layer-desc">Shared start/stop workflow, namespace/cluster resolution, pod-spec customization, logs, exec, port mapping</div>
+        </div>
+        <div class="layer-arrow">↓</div>
+        <div class="layer layer-l3">
+          <div class="layer-name">DeploymentPod · StatefulSetPod</div>
+          <div class="layer-desc">Selects workload kind (Deployment vs StatefulSet) and service shape</div>
+        </div>
+        <div class="layer-arrow">↓</div>
+        <div class="layer layer-l4">
+          <div class="layer-name">GenericPod · PostgreSQLPod · KafkaPod · MongoDBPod …</div>
+          <div class="layer-desc">Fills in the main container, lifecycle hooks, and any extra Kubernetes objects</div>
+        </div>
+      </div>
+      <div class="info">Kubernetes API objects are created by the workload and service <em>manager</em> layer, not directly by pod classes. <code>WorkloadConfig</code> and <code>ServiceConfig</code> carry the data between them.</div>
+      <span class="source">Pod.java:27</span>
+      <span class="source">BaseManagedPod.java:69</span>
+    </div>
+  </div>
+
+  <!-- ── START/STOP FLOW ── -->
+  <div class="phase-label">Start / Stop Flow</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>BaseManagedPod.start() — Execution Order</h2>
+      <ol class="step-list">
+        <li>Resolve cluster and namespace defaults</li>
+        <li>Run <code>preStart()</code> if the concrete pod implements <code>PodLifecycleHooks</code></li>
+        <li>Build the pod spec</li>
+        <li>Create the workload resource</li>
+        <li>Create the service resource</li>
+        <li>Wait for readiness</li>
+        <li>Run <code>postStart()</code> if present</li>
+      </ol>
+      <span class="source">BaseManagedPod.java:739</span>
+      <span class="source">PodLifecycleHooks.java:13</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h2>stop()</h2>
+      <p>Runs <code>preStop()</code> first, then deletes the service and workload resources, and also cleans up any cluster access strategy state.</p>
+      <span class="source">BaseManagedPod.java:752</span>
+    </div>
+  </div>
+
+  <!-- ── NAMESPACE / CLUSTER ── -->
+  <div class="phase-label">Namespace &amp; Cluster Resolution</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>resolveRuntimeDefaults()</h2>
+      <p>Runtime defaults are sourced from <code>TestPodDefaults</code> and resolved in priority order:</p>
+      <h3>Cluster</h3>
+      <ul>
+        <li>Explicit cluster on the pod</li>
+        <li><code>TestPodDefaults.resolveCluster()</code> — thread-local then global</li>
+      </ul>
+      <h3>Namespace</h3>
+      <ul>
+        <li>Explicit namespace <em>object</em></li>
+        <li>Explicit namespace <em>name</em> — creates or attaches</li>
+        <li>Shared namespace from <code>TestPodDefaults</code></li>
+        <li>Cluster default namespace</li>
+        <li>Create a new namespace as last resort</li>
+      </ul>
+      <div class="note"><code>TestPodDefaults.resolveNamespaceName()</code> exists but is not called directly by the current <code>BaseManagedPod</code> flow — the priority list above is the actual path.</div>
+      <span class="source">TestPodDefaults.java:236</span>
+      <span class="source">BaseManagedPod.java:839</span>
+    </div>
+  </div>
+
+  <!-- ── WHAT EACH CLASS CREATES ── -->
+  <div class="phase-label">Kubernetes Resources per Pod Type</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Resource Ownership at a Glance</h2>
+      <div class="pod-grid">
+
+        <div class="pod-card">
+          <div class="pod-name">DeploymentPod / GenericPod</div>
+          <span class="resource-tag rt-deploy">Deployment</span>
+          <span class="resource-tag rt-svc">ClusterIP Service</span>
+          <div class="pod-note">GenericPod optionally preloads a local image into Minikube before start.</div>
+        </div>
+
+        <div class="pod-card">
+          <div class="pod-name">StatefulSetPod / GenericStatefulPod / MongoDBPod</div>
+          <span class="resource-tag rt-ss">StatefulSet</span>
+          <span class="resource-tag rt-svc-hl">headless Service</span>
+          <span class="resource-tag rt-pvc">PVC templates (optional)</span>
+        </div>
+
+        <div class="pod-card">
+          <div class="pod-name">PostgreSQLPod</div>
+          <span class="resource-tag rt-ss">StatefulSet</span>
+          <span class="resource-tag rt-svc">ClusterIP Service</span>
+          <span class="resource-tag rt-svc-hl">headless Service</span>
+          <span class="resource-tag rt-cm">ConfigMap (optional)</span>
+          <span class="resource-tag rt-pvc">PVC template (optional)</span>
+          <div class="pod-note">ConfigMap named <code>&lt;pod&gt;-init</code> for init SQL, mounted at <code>/docker-entrypoint-initdb.d</code>. Deleted in <code>preStop()</code>.</div>
+        </div>
+
+        <div class="pod-card">
+          <div class="pod-name">KafkaPod</div>
+          <span class="resource-tag rt-ss">StatefulSet</span>
+          <span class="resource-tag rt-svc">ClusterIP Service</span>
+          <span class="resource-tag rt-svc-hl">headless Service</span>
+          <div class="pod-note">No ZooKeeper (KRaft mode). Optional Redpanda Console is a sidecar, not a separate Service. Topics created via <code>exec</code> after startup.</div>
+        </div>
+
+        <div class="pod-card outlier">
+          <div class="pod-name accent">LocalServicePod</div>
+          <span class="resource-tag rt-svc">Service (no selector)</span>
+          <span class="resource-tag rt-ep">Endpoints</span>
+          <div class="pod-note">No workload at all. Routes in-cluster DNS to the developer machine's IP.</div>
+        </div>
+
+      </div>
+      <div class="info">Init containers, sidecars, probes, and resource requests live <strong>inside the pod template</strong> — not as separate Kubernetes API objects.</div>
+    </div>
+  </div>
+
+  <!-- ── CONCRETE POD DETAILS ── -->
+  <div class="phase-label">Notable Details per Concrete Pod</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>PostgreSQLPod</h2>
+      <ul>
+        <li>Main container listens on port <code>5432</code>; readiness/liveness probes use <code>pg_isready</code>.</li>
+        <li>Persistent storage is a StatefulSet PVC template named <code>data</code>.</li>
+        <li>Init SQL is loaded into a <code>ConfigMap</code> and mounted at <code>/docker-entrypoint-initdb.d</code>.</li>
+        <li><code>createWorkloadManager()</code> sets the StatefulSet's <code>serviceName</code> to <code>&lt;name&gt;-headless</code>.</li>
+        <li><code>createServiceManager()</code> uses <code>CompositeServiceManager</code> to create both <code>&lt;name&gt;</code> and <code>&lt;name&gt;-headless</code>.</li>
+        <li><code>preStop()</code> deletes the init ConfigMap.</li>
+      </ul>
+      <span class="source">PostgreSQLPod.java:473, 548</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h2>KafkaPod</h2>
+      <ul>
+        <li>Runs Kafka in KRaft mode — no ZooKeeper resource is created.</li>
+        <li>Main container exposes internal, external, and controller ports.</li>
+        <li><code>buildServiceCustomizers()</code> enables <code>publishNotReadyAddresses(true)</code>.</li>
+        <li>The optional Redpanda Console is a sidecar container in the same pod spec — no extra Service or ConfigMap.</li>
+        <li><code>getInternalPort()</code> returns the external-listener port (<code>9093</code>); <code>getInternalBootstrapServers()</code> points to the true in-cluster listener (<code>9092</code>).</li>
+        <li>Topics are created after startup via <code>exec</code> into the broker container.</li>
+      </ul>
+      <span class="source">KafkaPod.java:403, 453</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h2>MongoDBPod</h2>
+      <ul>
+        <li>Uses an exec readiness/liveness probe that runs <code>mongosh</code> or <code>mongo</code>.</li>
+        <li>Authentication, database, and replica-set settings are all container env/args — no extra Kubernetes objects.</li>
+        <li><code>preStart()</code> only preloads the image for Minikube.</li>
+        <li>Inherits the standard StatefulSet + headless service path from <code>StatefulSetPod</code>.</li>
+      </ul>
+      <span class="source">MongoDBPod.java:46, 202</span>
+    </div>
+  </div>
+
+  <!-- ── POD SPEC CONSTRUCTION ── -->
+  <div class="phase-label">Pod Spec Construction</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>buildPodSpec() — Customization Order</h2>
+      <p><code>BaseManagedPod.buildPodSpec()</code> always starts with the main container and applies customizations in this fixed order:</p>
+      <ol class="step-list">
+        <li>Init containers</li>
+        <li>Sidecars</li>
+        <li>Resource requests on the first container</li>
+        <li>Low-level <code>PodSpecBuilder</code> customizers</li>
+      </ol>
+      <p><code>withInitContainer(…)</code>, <code>withSidecar(…)</code>, and <code>withPodCustomizer(…)</code> all affect the pod template — not separate Kubernetes resources.</p>
+      <span class="source">BaseManagedPod.java:891</span>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Container Builder Classes</h2>
+      <ul>
+        <li><strong>ContainerDefinition</strong> — generic container adapter. Holds image, env, command, args, ports, and an optional HTTP readiness probe. Derives a default wait strategy from those settings. Builds a Fabric8 <code>Container</code> via <code>ContainerSpec</code>.</li>
+        <li><strong>ContainerSpec</strong> — low-level Fabric8 container builder. Supports ports, env vars, command/args, volume mounts, readiness/liveness/startup probes, resource requests and limits, and arbitrary Fabric8 customizations.</li>
+        <li><strong>ProbeSpec</strong> — probe builder supporting TCP, HTTP/HTTPS, and exec probes.</li>
+        <li><strong>InitContainerBuilder</strong> / <strong>SidecarBuilder</strong> — simple facades that each emit a single Fabric8 <code>Container</code>.</li>
+      </ul>
+      <span class="source">ContainerDefinition.java:23</span>
+      <span class="source">ContainerSpec.java:80</span>
+      <span class="source">ProbeSpec.java:65</span>
+    </div>
+  </div>
+
+  <!-- ── WAIT STRATEGIES ── -->
+  <div class="phase-label">Wait Strategies</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Readiness Waiting per Pod Type</h2>
+      <table class="wait-table">
+        <thead>
+          <tr><th>Class</th><th>Default strategy &amp; timeout</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="cls">DeploymentPod</td>
+            <td>Readiness-probe wait — <strong>1 minute</strong></td>
+          </tr>
+          <tr>
+            <td class="cls">StatefulSetPod</td>
+            <td>Readiness-probe wait — <strong>2 minutes</strong></td>
+          </tr>
+          <tr>
+            <td class="cls">ContainerDefinition</td>
+            <td>HTTP wait → port wait → readiness-probe wait (derived from probe config)</td>
+          </tr>
+          <tr>
+            <td class="cls">PostgreSQLPod</td>
+            <td>Three-layer: pod readiness → log message → real JDBC <code>SELECT 1</code></td>
+          </tr>
+          <tr>
+            <td class="cls">KafkaPod</td>
+            <td>Pod readiness → real broker API call via <code>kafka-topics --list</code></td>
+          </tr>
+        </tbody>
+      </table>
+      <span class="source">DeploymentPod.java:63</span>
+      <span class="source">StatefulSetPod.java:92</span>
+      <span class="source">PostgreSQLWaitStrategy.java:22</span>
+      <span class="source">KafkaWaitStrategy.java:9</span>
+    </div>
+  </div>
+
+  <!-- ── BOTTOM LINE ── -->
+  <div class="phase-label">Quick Reference Summary</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Resource Ownership in One Place</h2>
+      <div class="summary-row">
+        <div class="summary-item">
+          <span class="s-key">DeploymentPod / GenericPod</span>
+          <span><code>Deployment</code> + <code>ClusterIP Service</code></span>
+        </div>
+        <div class="summary-item">
+          <span class="s-key">StatefulSetPod / GenericStatefulPod / MongoDBPod</span>
+          <span><code>StatefulSet</code> + <code>headless Service</code></span>
+        </div>
+        <div class="summary-item">
+          <span class="s-key">PostgreSQLPod</span>
+          <span><code>StatefulSet</code> + <code>ClusterIP Service</code> + <code>headless Service</code> + optional <code>ConfigMap</code> + optional <code>PVC template</code></span>
+        </div>
+        <div class="summary-item">
+          <span class="s-key">KafkaPod</span>
+          <span><code>StatefulSet</code> + <code>ClusterIP Service</code> + <code>headless Service</code> + optional UI sidecar</span>
+        </div>
+        <div class="summary-item">
+          <span class="s-key">LocalServicePod</span>
+          <span><code>Service</code> (no selector) + <code>Endpoints</code> — no workload</span>
+        </div>
+      </div>
+      <div class="info">Init containers, sidecars, probes, and resource requests live inside the pod template — not as separate Kubernetes API objects.</div>
+    </div>
+  </div>
+
+  <!-- ── CLASS TABLE ── -->
+  <div class="phase-label">Full Class Table</div>
+
+  <div class="section">
+    <div class="card">
+      <h2>All Classes at a Glance</h2>
+      <div class="class-table-wrap">
+        <table class="class-table">
+          <thead>
+            <tr>
+              <th>Class</th>
+              <th>Purpose</th>
+              <th>Workload / Service</th>
+              <th>Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="cls-name">Pod</td><td>Public contract for all test pods</td><td>—</td><td>Configuration, lifecycle, logs, exec, ports, property publishing</td></tr>
+            <tr><td class="cls-name">PodLifecycleHooks</td><td>Optional lifecycle callbacks</td><td>—</td><td><code>preStart</code>, <code>postStart</code>, <code>preStop</code></td></tr>
+            <tr><td class="cls-name">TestPodDefaults</td><td>Resolve cluster &amp; namespace defaults</td><td>—</td><td>Thread-local plus global defaults</td></tr>
+            <tr><td class="cls-name">BaseManagedPod</td><td>Shared orchestration &amp; pod-spec assembly</td><td>Via managers</td><td>Init containers, sidecars, resource requests, customizers</td></tr>
+            <tr><td class="cls-name">DeploymentPod</td><td>Base for stateless pods</td><td class="workload-cell"><code>Deployment</code> + <code>ClusterIP Service</code></td><td>Default 1-min readiness wait</td></tr>
+            <tr><td class="cls-name">StatefulSetPod</td><td>Base for stateful pods</td><td class="workload-cell"><code>StatefulSet</code> + headless <code>Service</code></td><td>Can add PVC templates; caches external endpoint</td></tr>
+            <tr><td class="cls-name">ContainerDefinition</td><td>Generic container description helper</td><td>—</td><td>Builds main container, derives default wait strategy</td></tr>
+            <tr><td class="cls-name">ContainerSpec</td><td>Low-level Fabric8 container builder</td><td>—</td><td>Ports, env, commands, probes, mounts, resources, customizers</td></tr>
+            <tr><td class="cls-name">ProbeSpec</td><td>Probe builder helper</td><td>—</td><td>TCP, HTTP/HTTPS, and exec probes</td></tr>
+            <tr><td class="cls-name">InitContainerBuilder</td><td>Simplified init-container builder</td><td>—</td><td>Emits a Fabric8 <code>Container</code> for init usage</td></tr>
+            <tr><td class="cls-name">SidecarBuilder</td><td>Simplified sidecar builder</td><td>—</td><td>Emits a Fabric8 <code>Container</code> for sidecar usage</td></tr>
+            <tr><td class="cls-name">GenericPod</td><td>Arbitrary image on a Deployment</td><td class="workload-cell"><code>Deployment</code> + <code>ClusterIP Service</code></td><td>Optional Minikube local-image preload</td></tr>
+            <tr><td class="cls-name">GenericStatefulPod</td><td>Arbitrary image on a StatefulSet</td><td class="workload-cell"><code>StatefulSet</code> + headless <code>Service</code></td><td>Optional PVC templates</td></tr>
+            <tr><td class="cls-name">LocalServicePod</td><td>Expose a local machine service to the cluster</td><td class="workload-cell"><code>Service</code> + <code>Endpoints</code></td><td>No workload; service has no selector</td></tr>
+            <tr><td class="cls-name">MongoDBPod</td><td>MongoDB integration pod</td><td class="workload-cell"><code>StatefulSet</code> + headless <code>Service</code></td><td>Auth env vars, DB env, optional replica set args</td></tr>
+            <tr><td class="cls-name">PostgreSQLPod</td><td>PostgreSQL integration pod</td><td class="workload-cell"><code>StatefulSet</code> + <code>ClusterIP</code> + headless <code>Service</code></td><td>Optional init ConfigMap, optional PVC template</td></tr>
+            <tr><td class="cls-name">KafkaPod</td><td>Single-node Kafka broker</td><td class="workload-cell"><code>StatefulSet</code> + <code>ClusterIP</code> + headless <code>Service</code></td><td>Optional UI sidecar, fixed ports, topic creation via exec</td></tr>
+            <tr><td class="cls-name">WorkloadConfig</td><td>Data passed to workload managers</td><td>—</td><td>Name, namespace, labels, annotations, pod spec, client</td></tr>
+            <tr><td class="cls-name">WorkloadManager</td><td>Internal workload abstraction</td><td>—</td><td><code>DeploymentManager</code> or <code>StatefulSetManager</code></td></tr>
+            <tr><td class="cls-name">DeploymentManager</td><td>Create and delete a Deployment</td><td class="workload-cell"><code>Deployment</code></td><td>1 replica, label selector on <code>app</code></td></tr>
+            <tr><td class="cls-name">StatefulSetManager</td><td>Create and delete a StatefulSet</td><td class="workload-cell"><code>StatefulSet</code></td><td>1 replica, stable <code>serviceName</code>, optional PVC templates</td></tr>
+            <tr><td class="cls-name">ServiceConfig</td><td>Data passed to service managers</td><td>—</td><td>Port list, selector, labels, customizers, fixed node ports</td></tr>
+            <tr><td class="cls-name">ServiceManager</td><td>Internal service abstraction</td><td>—</td><td>ClusterIP, Headless, NodePort, or composite</td></tr>
+            <tr><td class="cls-name">ClusterIPServiceManager</td><td>Create a normal service</td><td class="workload-cell"><code>Service (ClusterIP)</code></td><td>Multi-port support</td></tr>
+            <tr><td class="cls-name">HeadlessServiceManager</td><td>Create a headless service</td><td class="workload-cell"><code>Service (clusterIP: None)</code></td><td>Used for stable DNS with StatefulSets</td></tr>
+            <tr><td class="cls-name">NodePortServiceManager</td><td>Create an externally reachable service</td><td class="workload-cell"><code>Service (NodePort)</code></td><td>Can set fixed node ports</td></tr>
+            <tr><td class="cls-name">CompositeServiceManager</td><td>Create multiple services together</td><td class="workload-cell">Multiple <code>Service</code> objects</td><td>Used by PostgreSQL and Kafka</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <footer>TestPods · Pod Architecture Reference · Generated documentation</footer>
+
+</div>
+
+<script>
+  const items = document.querySelectorAll('.section');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((e, i) => {
+      if (e.isIntersecting) {
+        setTimeout(() => e.target.classList.add('visible'), i * 55);
+        io.unobserve(e.target);
+      }
+    });
+  }, { threshold: 0.08 });
+  items.forEach(el => io.observe(el));
+</script>
+</body>
+</html>

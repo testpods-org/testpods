@@ -207,6 +207,29 @@ That is why the default TestPods model should be:
 3. Dynamic external access by default.
 4. Explicit opt-in for any cluster-scoped behavior.
 
+### Provider Field Policy
+
+To avoid constructor side effects during JUnit scanning, provider classes should only support
+static `@TestPod` fields. The extension can enforce this at runtime by rejecting any
+non-static `@TestPod` field declared in a provider class and by scanning provider classes without
+instantiating them.
+
+That keeps provider scanning limited to class metadata and static field access only. It also makes
+the flow predictable: if a provider class contains a static `@TestPod` field with an initializer,
+the pod object is created as part of normal JVM class initialization and is then discovered by the
+reflection scan.
+
+### Pod Construction Hygiene
+
+Pod classes should be safe to construct. Pod construction should not perform external side effects
+such as network calls, filesystem mutation, cluster access, or background thread startup. The
+constructor and fluent configuration methods should only build internal state needed to define the
+pod.
+
+This rule can be documented for pod authors rather than enforced by the extension. It keeps pod
+creation predictable and ensures that annotation scanning and pod instantiation remain cheap and
+deterministic.
+
 ### Image Distribution
 
 TestPods does not push images into minikube on your behalf. The pod spec only names an image, and
