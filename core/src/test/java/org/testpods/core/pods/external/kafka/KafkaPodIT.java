@@ -29,7 +29,7 @@ import org.testpods.junit.TestPods;
 @Slf4j
 public class KafkaPodIT {
 
-    private static final boolean HOLD_PODS_OPEN = false;
+    private static final boolean HOLD_PODS_OPEN = true;
 
     @RegisterCluster()
     static K8sCluster cluster;
