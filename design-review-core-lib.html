@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TestPods Core Library — Design Review &amp; Refactoring Proposal</title>
+<style>
+  :root {
+    --ink: #1a2332;
+    --muted: #5a6a7e;
+    --bg: #ffffff;
+    --panel: #f6f8fa;
+    --border: #d8dee6;
+    --accent: #0b5fa5;
+    --good: #1a7f4b;
+    --good-bg: #e8f5ee;
+    --warn: #9a6700;
+    --warn-bg: #fff4d6;
+    --bad: #b3341f;
+    --bad-bg: #fdeae5;
+    --code-bg: #eef1f5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    margin: 0;
+    line-height: 1.55;
+  }
+  main { max-width: 1060px; margin: 0 auto; padding: 2rem 2.5rem 6rem; }
+  h1 { font-size: 2rem; margin: 0.5rem 0 0.25rem; }
+  h2 { font-size: 1.45rem; margin-top: 3rem; border-bottom: 2px solid var(--border); padding-bottom: 0.4rem; }
+  h3 { font-size: 1.12rem; margin-top: 2rem; }
+  h4 { font-size: 1rem; margin-top: 1.4rem; }
+  p.subtitle { color: var(--muted); margin-top: 0; font-size: 1.05rem; }
+  code, .path {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.86em;
+    background: var(--code-bg);
+    padding: 0.1em 0.35em;
+    border-radius: 4px;
+  }
+  pre {
+    background: #0f1722;
+    color: #dbe4f0;
+    padding: 1rem 1.2rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 0.82rem;
+    line-height: 1.5;
+  }
+  pre code { background: none; color: inherit; padding: 0; font-size: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92rem; }
+  th, td { border: 1px solid var(--border); padding: 0.5rem 0.7rem; text-align: left; vertical-align: top; }
+  th { background: var(--panel); font-weight: 600; }
+  tr:nth-child(even) td { background: #fbfcfd; }
+  .badge {
+    display: inline-block; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em;
+    padding: 0.15em 0.6em; border-radius: 999px; text-transform: uppercase; vertical-align: middle;
+  }
+  .sev-high { background: var(--bad-bg); color: var(--bad); }
+  .sev-med  { background: var(--warn-bg); color: var(--warn); }
+  .sev-low  { background: #e7eef7; color: var(--accent); }
+  .keep     { background: var(--good-bg); color: var(--good); }
+  .defer    { background: var(--warn-bg); color: var(--warn); }
+  .remove   { background: var(--bad-bg); color: var(--bad); }
+  .card {
+    border: 1px solid var(--border); border-left: 4px solid var(--accent);
+    border-radius: 8px; padding: 1rem 1.3rem; margin: 1.2rem 0; background: var(--panel);
+  }
+  .card.bad  { border-left-color: var(--bad); }
+  .card.warn { border-left-color: var(--warn); }
+  .card.good { border-left-color: var(--good); }
+  .card h3, .card h4 { margin-top: 0.2rem; }
+  .evidence { font-size: 0.88rem; color: var(--muted); margin-top: 0.6rem; }
+  .evidence strong { color: var(--ink); }
+  nav.toc {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 1rem 1.5rem; margin: 1.5rem 0; column-count: 2; column-gap: 2.5rem;
+  }
+  nav.toc ol { margin: 0; padding-left: 1.2rem; }
+  nav.toc li { margin: 0.25rem 0; break-inside: avoid; }
+  nav.toc a { color: var(--accent); text-decoration: none; }
+  nav.toc a:hover { text-decoration: underline; }
+  figure { margin: 1.5rem 0; }
+  figcaption { font-size: 0.85rem; color: var(--muted); text-align: center; margin-top: 0.4rem; }
+  svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+  .meta { color: var(--muted); font-size: 0.9rem; }
+  .tldr {
+    background: #eef4fb; border: 1px solid #c4d7ec; border-radius: 8px;
+    padding: 1.2rem 1.5rem; margin: 1.5rem 0;
+  }
+  .tldr h2 { margin-top: 0; border: none; padding: 0; font-size: 1.2rem; }
+  ul.tight li { margin: 0.3rem 0; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+  @media print {
+    body { font-size: 11pt; }
+    main { max-width: none; padding: 0; }
+    nav.toc { column-count: 2; }
+    .card, pre, figure { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<main>
+
+<p class="meta">TestPods project &middot; branch <code>beta-work</code> &middot; review date 2026-07-30 &middot; reviewer: Claude (Java / Kubernetes design review)</p>
+<h1>TestPods Core Library — Design Review</h1>
+<p class="subtitle">Architecture assessment and refactoring proposal for the <code>testpods-core</code> artifact, oriented toward a minimal, 100%-working, well-documented initial release.</p>
+
+<div class="tldr">
+<h2>Executive summary</h2>
+<p><strong>The core idea is strong and the hard parts are largely solved.</strong> The Testcontainers-style fluent API, the strategy seams (workload / service / access / wait), the property-publishing system with dependency-ordered startup, and the minikube profile-ownership semantics are all genuinely good design. <code>LocalServicePod</code> (run one service on the laptop against in-cluster dependencies) is a differentiating feature Testcontainers cannot offer.</p>
+<p><strong>The main risks to an initial release are structural, not functional:</strong></p>
+<ul class="tight">
+  <li><strong>Coupling knots</strong> — a bidirectional dependency between <code>core.provisioning</code> and <code>junit</code>, the <code>cluster</code> package depending on the <code>pods</code> package, and the <code>K8sCluster</code> <em>interface</em> constructing its own <code>MinikubeCluster</code> implementation.</li>
+  <li><strong>One fat cluster interface</strong> mixing three concerns: cluster provisioning/lifecycle, cluster connection, and namespace management — exactly the split the project owner suspects is needed. It is.</li>
+  <li><strong>A 933-line <code>BaseManagedPod</code></strong> carrying at least eight responsibilities, including minikube-specific image preloading that does not belong in a generic base class.</li>
+  <li><strong>Roughly 25–30% of the public surface is dead, unwired, or aspirational</strong> — an entire unused <code>storage</code> package, placeholder Maven modules, unimplemented annotations, stub factory methods that throw, and 10 <code>@Deprecated</code> members in a library that has never shipped.</li>
+</ul>
+<p><strong>Recommendation:</strong> before adding any feature, run a deletion pass (Wave&nbsp;1), then perform three targeted structural refactorings (Wave&nbsp;2): split the cluster interface, break the junit&harr;core cycle, and decompose <code>BaseManagedPod</code>. That yields a lib whose public surface matches what actually works — the precondition for the stated motto: <em>a small set of features that works 100%</em>.</p>
+</div>
+
+<nav class="toc">
+<ol>
+  <li><a href="#scope">Scope &amp; method</a></li>
+  <li><a href="#current">Current architecture</a></li>
+  <li><a href="#strengths">Design strengths</a></li>
+  <li><a href="#concerns">Design concerns (C1–C10)</a></li>
+  <li><a href="#target">Proposed target architecture</a></li>
+  <li><a href="#cluster-split">The cluster interface split in detail</a></li>
+  <li><a href="#pod-slim">Slimming the Pod abstraction</a></li>
+  <li><a href="#recommendations">Refactoring recommendations (R1–R12)</a></li>
+  <li><a href="#mvp">MVP release cut — keep / defer / remove</a></li>
+  <li><a href="#planning">Input for the planning session</a></li>
+</ol>
+</nav>
+
+<!-- ============================================================ -->
+<h2 id="scope">1. Scope &amp; method</h2>
+<p>This review covers the <code>testpods-core</code> Maven module (the primary artifact, ~12,900 lines of main-source Java across 60+ classes), its relationship to the <code>bom</code>, <code>modules/*</code>, and <code>examples/*</code> modules, and the JUnit&nbsp;5 integration in <code>org.testpods.junit</code>. Every class named below was read in full or in relevant part; findings cite file and line so they can be verified. The PRD (<code>prd/</code>) and specs (<code>specs/</code>) were used to calibrate intent, and the review is framed against the stated release goal: <em>minimum feature set, tested, complete, high-quality docs</em>.</p>
+
+<!-- ============================================================ -->
+<h2 id="current">2. Current architecture</h2>
+
+<h3>2.1 Module layout</h3>
+<table>
+<tr><th>Module</th><th>Contents</th><th>State</th></tr>
+<tr><td><code>core</code></td><td>Everything: cluster mgmt, pods, wait strategies, workload/service managers, provisioning, JUnit extension, <em>and</em> the Kafka / PostgreSQL / MongoDB domain pods</td><td>Active, primary artifact</td></tr>
+<tr><td><code>bom</code></td><td>Dependency management</td><td>Active</td></tr>
+<tr><td><code>modules/kafka</code>, <code>modules/postgresql</code></td><td><code>App.java</code> — "Hello World!" placeholder</td><td><span class="badge remove">Empty shell</span></td></tr>
+<tr><td><code>parent-pom</code></td><td>Build configuration</td><td>Active</td></tr>
+<tr><td><code>examples/system-tests</code></td><td>Spring Boot order/product services + E2E tests — good, realistic usage</td><td>Active</td></tr>
+<tr><td><code>testpods-agent</code></td><td>Agent tooling</td><td>Out of scope here</td></tr>
+</table>
+
+<h3>2.2 Package dependency graph (current)</h3>
+<figure>
+<svg viewBox="0 0 940 560" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="13">
+  <defs>
+    <marker id="arrOk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6a7e"/>
+    </marker>
+    <marker id="arrBad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#b3341f"/>
+    </marker>
+  </defs>
+
+  <!-- boxes -->
+  <g>
+    <rect x="60"  y="30"  width="200" height="52" rx="8" fill="#eef4fb" stroke="#0b5fa5" stroke-width="1.5"/>
+    <text x="160" y="52" text-anchor="middle" font-weight="600">org.testpods.junit</text>
+    <text x="160" y="70" text-anchor="middle" fill="#5a6a7e" font-size="11">extension + annotations</text>
+
+    <rect x="380" y="30"  width="210" height="52" rx="8" fill="#eef4fb" stroke="#0b5fa5" stroke-width="1.5"/>
+    <text x="485" y="52" text-anchor="middle" font-weight="600">core.provisioning</text>
+    <text x="485" y="70" text-anchor="middle" fill="#5a6a7e" font-size="11">Registry, Provisioner, reflection</text>
+
+    <rect x="220" y="170" width="200" height="52" rx="8" fill="#fff" stroke="#1a2332" stroke-width="1.5"/>
+    <text x="320" y="192" text-anchor="middle" font-weight="600">core.pods</text>
+    <text x="320" y="210" text-anchor="middle" fill="#5a6a7e" font-size="11">Pod, BaseManagedPod (933 loc)</text>
+
+    <rect x="620" y="170" width="200" height="52" rx="8" fill="#fff" stroke="#1a2332" stroke-width="1.5"/>
+    <text x="720" y="192" text-anchor="middle" font-weight="600">core.cluster</text>
+    <text x="720" y="210" text-anchor="middle" fill="#5a6a7e" font-size="11">K8sCluster, MinikubeCluster, CLI</text>
+
+    <rect x="40"  y="310" width="220" height="52" rx="8" fill="#fff" stroke="#1a2332" stroke-width="1.5"/>
+    <text x="150" y="332" text-anchor="middle" font-weight="600">core.pods.external.*</text>
+    <text x="150" y="350" text-anchor="middle" fill="#5a6a7e" font-size="11">KafkaPod, PostgreSQLPod, MongoDBPod</text>
+
+    <rect x="620" y="310" width="200" height="52" rx="8" fill="#fff" stroke="#1a2332" stroke-width="1.5"/>
+    <text x="720" y="332" text-anchor="middle" font-weight="600">core.cluster.minikube</text>
+    <text x="720" y="350" text-anchor="middle" fill="#5a6a7e" font-size="11">image loader, load target</text>
+
+    <rect x="300" y="440" width="320" height="52" rx="8" fill="#fff" stroke="#1a2332" stroke-width="1.5"/>
+    <text x="460" y="462" text-anchor="middle" font-weight="600">core.workload / core.service / core.wait</text>
+    <text x="460" y="480" text-anchor="middle" fill="#5a6a7e" font-size="11">strategy implementations (healthy seams)</text>
+
+    <rect x="700" y="440" width="180" height="52" rx="8" fill="#f6f8fa" stroke="#9aa7b5" stroke-width="1.5" stroke-dasharray="6 4"/>
+    <text x="790" y="462" text-anchor="middle" font-weight="600" fill="#5a6a7e">core.storage</text>
+    <text x="790" y="480" text-anchor="middle" fill="#b3341f" font-size="11">unreferenced — dead code</text>
+  </g>
+
+  <!-- healthy edges -->
+  <g stroke="#5a6a7e" stroke-width="1.6" fill="none">
+    <path d="M260 56 L378 56" marker-end="url(#arrOk)"/>
+    <path d="M430 84 L340 168" marker-end="url(#arrOk)"/>
+    <path d="M160 84 C160 130 240 150 270 168" marker-end="url(#arrOk)"/>
+    <path d="M420 196 L618 196" marker-end="url(#arrOk)"/>
+    <path d="M180 310 L280 224" marker-end="url(#arrOk)"/>
+    <path d="M340 224 C360 320 400 400 440 438" marker-end="url(#arrOk)"/>
+    <path d="M540 84 C620 110 680 140 710 168" marker-end="url(#arrOk)"/>
+  </g>
+
+  <!-- problem edges -->
+  <g stroke="#b3341f" stroke-width="2.2" fill="none">
+    <path d="M380 44 L262 44" marker-end="url(#arrBad)"/>
+    <path d="M618 210 C540 240 460 230 422 212" marker-end="url(#arrBad)" stroke-dasharray="8 4"/>
+    <path d="M420 210 C500 260 590 300 618 322" marker-end="url(#arrBad)"/>
+    <path d="M720 222 L720 308" marker-end="url(#arrBad)"/>
+  </g>
+
+  <!-- edge labels -->
+  <g fill="#b3341f" font-size="11" font-weight="600">
+    <text x="318" y="24">cycle: provisioning &rarr; junit annotations</text>
+    <text x="440" y="252">ExternalAccessStrategy uses Pod&lt;?&gt;</text>
+    <text x="452" y="300">BaseManagedPod &rarr; minikube preloading</text>
+    <text x="728" y="270">K8sCluster (interface)</text>
+    <text x="728" y="284">constructs MinikubeCluster</text>
+  </g>
+  <g fill="#5a6a7e" font-size="11">
+    <text x="290" y="70">uses</text>
+  </g>
+</svg>
+<figcaption>Fig. 1 — Current package dependencies. Red edges are the coupling problems discussed in section 4; the dashed red edge is a package-level cycle (<code>cluster</code> and <code>pods</code> depend on each other).</figcaption>
+</figure>
+
+<h3>2.3 Where the weight sits</h3>
+<table>
+<tr><th>Class</th><th class="num">Lines</th><th>Note</th></tr>
+<tr><td><code>pods/BaseManagedPod.java</code></td><td class="num">933</td><td>Base class for all managed pods — see C3</td></tr>
+<tr><td><code>pods/external/kafka/KafkaPod.java</code></td><td class="num">765</td><td>Domain pod, lives in core (C7)</td></tr>
+<tr><td><code>pods/external/postgresql/PostgreSQLPod.java</code></td><td class="num">730</td><td>Domain pod, lives in core (C7)</td></tr>
+<tr><td><code>pods/builders/ContainerSpec.java</code></td><td class="num">550</td><td>Shared container builder</td></tr>
+<tr><td><code>cluster/MinikubeCluster.java</code></td><td class="num">544</td><td>Cluster impl + namespace CRUD + dashboard (C2, C5)</td></tr>
+<tr><td><code>pods/local/LocalServicePod.java</code></td><td class="num">532</td><td>Re-implements the whole Pod interface (C4)</td></tr>
+<tr><td><code>cluster/MinikitCli.java</code></td><td class="num">503</td><td>Wraps three binaries: minikit, minikube, kubectl</td></tr>
+<tr><td><code>cluster/ExternalAccessStrategy.java</code></td><td class="num">454</td><td>Interface + 4 package-private impls in one file</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="strengths">3. Design strengths</h2>
+
+<div class="card good">
+<h4>S1 — Familiar Testcontainers mental model</h4>
+<p>Fluent pod builders, <code>waitingFor(...)</code>, <code>getMappedPort(...)</code>, <code>getHost()</code>, <code>@TestPods</code>/<code>@TestPod</code> mirroring <code>@Testcontainers</code>/<code>@Container</code>. Adoption friction for the target audience is near zero. This is the single most valuable API decision in the project — protect it.</p>
+</div>
+
+<div class="card good">
+<h4>S2 — The strategy seams already exist and demonstrably work</h4>
+<p><code>WorkloadManager</code> (Deployment/StatefulSet), <code>ServiceManager</code> (ClusterIP/Headless/NodePort/Composite), <code>ExternalAccessStrategy</code> (4 impls), and <code>WaitStrategy</code> (6 impls) are clean, single-purpose interfaces. <code>KafkaPod</code> proves the seams carry real weight: it composes a StatefulSet workload with a composite service and a custom wait strategy without touching the base class. This is composition-over-inheritance done right, and it is the backbone the refactoring should build on, not replace.</p>
+</div>
+
+<div class="card good">
+<h4>S3 — PropertyContext + dependency-ordered startup is a genuine differentiator</h4>
+<p>Pods publish lazy connection properties (<code>${postgres.internal.uri}</code>); consumers reference them in env templates; <code>Registry.orderInitializationsForStart()</code> (<span class="path">Registry.java:133</span>) topologically sorts pods by referenced properties and detects cycles. Wiring a multi-service slice declaratively is something Testcontainers users do by hand. Keep, document, and showcase this.</p>
+</div>
+
+<div class="card good">
+<h4>S4 — Ownership semantics are carefully thought through</h4>
+<p><code>Namespace.owned()</code> vs <code>Namespace.external()</code> with <code>deleteNamespace</code> refusing to delete non-owned namespaces (<span class="path">MinikubeCluster.java:197</span>); profile ownership decided at attach-vs-start time with policy downgraded to <code>LEAVE_RUNNING</code> when attaching (<span class="path">MinikubeCluster.java:97</span>); per-profile startup locks handling concurrent JVM construction. This is the kind of safe-by-default engineering a test library must have.</p>
+</div>
+
+<div class="card good">
+<h4>S5 — LocalServicePod is a killer feature for the development use case</h4>
+<p>A selector-less Service + manual Endpoints pointing at the developer's machine, so in-cluster pods reach the locally-running (debuggable) service by normal DNS. Combined with the external <code>kubectl port-forward</code> access strategy that survives debugger suspension (<span class="path">ExternalAccessStrategy.java:195</span> — a subtle, well-reasoned choice), this covers the "develop one service against real deps" workflow that motivated the project.</p>
+</div>
+
+<div class="card good">
+<h4>S6 — Documentation discipline</h4>
+<p>Recent code has strong Javadoc explaining <em>why</em> (e.g., the profile lock comment in <span class="path">MinikubeCluster.java:48–55</span>), and the repo carries PRDs, specs, and explanatory HTML pages. The raw material for high-quality release docs exists.</p>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="concerns">4. Design concerns</h2>
+<p>Ordered roughly by how much they threaten the release goal. Each cites verifiable evidence.</p>
+
+<div class="card bad">
+<h3>C1 — Coupling knots between packages and between interface and implementation <span class="badge sev-high">High</span></h3>
+<p>Four distinct dependency problems compound each other:</p>
+<ol>
+  <li><strong><code>core.provisioning</code> &harr; <code>org.testpods.junit</code> is a cycle.</strong> <code>Registry</code> imports <code>junit.TestPodGroup</code>; <code>FieldDeclaration</code>/<code>FieldInitialization</code> import the <code>@TestPod</code> annotation; <code>ReflectionHelper</code> imports <code>@RegisterCluster</code>. Meanwhile <code>TestPodsExtension</code> imports <code>Registry</code>/<code>Provisioner</code>. The "core" domain layer knows about its JUnit adapter and vice versa — neither can be extracted, versioned, or tested independently, and a future TestNG/Spock adapter is impossible without duplicating provisioning.</li>
+  <li><strong>The <code>cluster</code> package depends on the <code>pods</code> package.</strong> <code>ExternalAccessStrategy.getExternalEndpoint(Pod&lt;?&gt;, int)</code> (<span class="path">ExternalAccessStrategy.java:43</span>) forces the cluster layer to understand the pod abstraction, creating a package-level cycle (<code>pods</code> also uses <code>cluster</code>). The strategy only actually needs <em>namespace, service name, fixed-port hint, and a client</em>.</li>
+  <li><strong>The <code>K8sCluster</code> interface constructs its own implementation.</strong> <code>discover()</code> calls <code>MinikubeCluster.builder()</code> directly (<span class="path">K8sCluster.java:51</span>). An interface that news up one concrete impl can never support "multiple k8s cluster impls" cleanly — Kind/kubeconfig support would mean editing the interface.</li>
+  <li><strong>Generic pod code depends on minikube specifics.</strong> <code>BaseManagedPod.preloadExternalImageForMinikube(...)</code> (<span class="path">BaseManagedPod.java:447</span>) imports <code>cluster.minikube.*</code> and does <code>instanceof MinikubeImageLoadTarget</code>; <code>GenericPod.fromLocalImage</code> throws unless the cluster is minikube (<span class="path">GenericPod.java:119</span>).</li>
+</ol>
+<p class="evidence"><strong>Consequence:</strong> the library cannot grow the way the PRD intends (more cluster types, more framework adapters, more modules) without every addition touching the center. This is the root cause behind most other concerns.</p>
+</div>
+
+<div class="card bad">
+<h3>C2 — <code>K8sCluster</code> mixes three responsibilities plus factory duties <span class="badge sev-high">High</span></h3>
+<p>The single interface currently answers four different questions:</p>
+<table>
+<tr><th>Concern</th><th>Members on K8sCluster today</th></tr>
+<tr><td><strong>Cluster provisioning / lifecycle</strong> ("operate the cluster machinery")</td><td><code>discover()</code>, <code>discover(policy)</code>, <code>newMinikube()</code>, <code>newKind()</code>, <code>fromKubeconfig()</code> ×2, <code>close()</code>; plus profile/policy/ownership on the impl</td></tr>
+<tr><td><strong>Connection</strong> ("talk to the API server")</td><td><code>getClient()</code>, <code>getAccessStrategy()</code></td></tr>
+<tr><td><strong>Namespace management</strong> ("manage my workspace")</td><td><code>getDefaultNamespace()</code>, <code>getNamespace(name)</code>, <code>createNamespace()</code> ×2, <code>attachNamespace()</code>, <code>deleteNamespace()</code></td></tr>
+<tr><td><strong>Fluent oddity</strong></td><td><code>withNamespace()</code> returning <code>K8sCluster</code> (<span class="path">K8sCluster.java:99</span>) — a mutating builder method on a runtime interface</td></tr>
+</table>
+<p>Additional problems within this interface:</p>
+<ul class="tight">
+  <li><code>newKind()</code> and both <code>fromKubeconfig()</code> overloads throw <code>UnsupportedOperationException</code> — advertised API that fails at runtime. In an MVP whose motto is "everything shipped works", these must not exist.</li>
+  <li><code>discover()</code> is misnamed: if no profile is running it <em>starts one</em> (<code>cli.up</code>, up to 3 minutes) with <code>DESTROY_ON_CLOSE</code>. Discovery with heavyweight side effects surprises users and CI.</li>
+  <li>Javadoc/behavior mismatch: the <code>discover()</code> Javadoc says it tries profile <code>"minikit"</code>, the error message says <code>minikube start -p minikit</code>, but the builder default is <code>DEFAULT_PROFILE_NAME = "testpods"</code> (<span class="path">MinikubeCluster.java:30</span>). Three profile names — <em>minikit</em>, <em>minikube</em>, <em>testpods</em> — circulate in docs, code, and messages.</li>
+  <li><code>getNamespace(name)</code> returns <code>null</code> with a <code>// TODO handle namespace not found</code> (<span class="path">MinikubeCluster.java:157</span>).</li>
+  <li><code>getDefaultNamespace()</code> is mutable and surprising: every <code>createNamespace()</code> call silently re-points the default to the newest namespace (<span class="path">MinikubeCluster.java:233</span>).</li>
+</ul>
+</div>
+
+<div class="card bad">
+<h3>C3 — <code>BaseManagedPod</code> is a god class <span class="badge sev-high">High</span></h3>
+<p>933 lines with at least eight distinct responsibilities:</p>
+<ol class="tight">
+  <li>Fluent configuration state (name, labels, ports, customizers) — belongs here.</li>
+  <li>Start/stop orchestration (<code>doStart</code>/<code>doStop</code>, lifecycle hooks) — belongs here.</li>
+  <li>Cluster/namespace default resolution (<code>resolveRuntimeDefaults</code>, <span class="path">:839</span>) — policy logic entangled with C6.</li>
+  <li>Exec/log plumbing over Fabric8 (<span class="path">:249–305</span>).</li>
+  <li>External endpoint caching (<code>mappedPorts</code>, <span class="path">:340</span>).</li>
+  <li>Minikube image preloading with a <em>static</em> <code>IdentityHashMap</code> keyed by cluster instance (<span class="path">:88–90, 447–468</span>) — cluster-impl-specific code in the generic base.</li>
+  <li>A ~250-line debug report builder (<code>buildDeploymentDetailsReport</code> + six <code>appendX</code> helpers, <span class="path">:508–733</span>) — valuable feature, wrong home.</li>
+  <li>Env-var masking, label building, misc utilities.</li>
+</ol>
+<p class="evidence"><strong>Symptoms already visible:</strong> a commented-out duplicate field (<span class="path">:93</span>), <code>getClient()</code> throwing <code>ClassCastException</code> as a "no cluster" error (<span class="path">:314</span>), and <code>start()</code> calling <code>resolveRuntimeDefaults()</code> twice (once in <code>start()</code>, again in <code>doStart()</code>). Every new pod type inherits all of this whether it needs it or not.</p>
+</div>
+
+<div class="card warn">
+<h3>C4 — The <code>Pod</code> interface is too wide (interface-segregation violation) <span class="badge sev-med">Medium</span></h3>
+<p><code>Pod&lt;SELF&gt;</code> declares ~30 methods spanning configuration, lifecycle, observability, internal/external endpoints, and property publishing. The proof it is too wide ships in the same package: <code>LocalServicePod</code> — a first-class feature — must implement all of it and throws <code>UnsupportedOperationException</code> five times (init containers, sidecars, pod customizers, resource requests, exec) because those concepts don't apply to a service-without-workload. Two default methods on the interface itself also throw (<code>withExposedPorts</code>, <code>withFixedExposedPort</code>, <span class="path">Pod.java:156–167</span>). An interface where implementations must refuse parts of the contract will keep fracturing as pod kinds are added (Job pods, Helm-based pods, operator-managed pods…).</p>
+</div>
+
+<div class="card warn">
+<h3>C5 — <code>MinikubeCluster</code> constructor does heavyweight, non-obvious work <span class="badge sev-med">Medium</span></h3>
+<p>Construction performs: preflight checks &rarr; possible 3-minute profile start &rarr; client build + ping with retry &rarr; <strong>creation of a namespace</strong> (side effect: every <code>MinikubeCluster</code> owns a namespace you didn't ask for) &rarr; <strong>dashboard addon enablement + endpoint wait (up to 1 minute) + proxy process spawn</strong> (<span class="path">MinikubeCluster.java:67–104, 334–354</span>). The dashboard is a debugging aid, yet every user — including CI — pays for it on every cluster start. Constructors that shell out, sleep, and spawn processes are also effectively untestable without a live minikube. The namespace-on-construction also partially duplicates what <code>Registry.ensureNamespaceIsActive()</code> and <code>BaseManagedPod.resolveRuntimeDefaults()</code> do, so three layers negotiate "which namespace am I in".</p>
+</div>
+
+<div class="card warn">
+<h3>C6 — Configuration resolution maze with mutable static state <span class="badge sev-med">Medium / High</span></h3>
+<p>A pod's cluster and namespace can come from <em>five</em> places: explicit <code>inCluster()</code>/<code>inNamespace(Namespace)</code>; string-based <code>inNamespace(String)</code> resolved at start; <code>TestPodDefaults</code> thread-local suppliers; <code>TestPodDefaults</code> global suppliers; and implicit <code>K8sCluster.discover()</code> fallback. The resolution order lives partly in <code>TestPodDefaults</code> and partly in <code>BaseManagedPod.resolveRuntimeDefaults()</code>. Static mutable state is spread over four homes: <code>TestPodDefaults</code> (<code>InheritableThreadLocal</code> + globals), <code>BaseManagedPod.PRELOADED_MINIKUBE_IMAGES</code>, <code>GenericPod.LOADED_LOCAL_IMAGES</code>, and <code>MinikubeCluster.PROFILE_STARTUP_LOCKS</code>. This makes behavior dependent on invocation history, complicates parallel test execution (the very thing <code>TestPodDefaults</code> was built for), and makes "why did my pod land in namespace X?" hard to answer. For an MVP, fewer resolution paths beat flexible ones.</p>
+</div>
+
+<div class="card warn">
+<h3>C7 — Dead, unwired, and aspirational surface (~25–30% of the lib) <span class="badge sev-med">Medium (High for release)</span></h3>
+<table>
+<tr><th>Item</th><th>Evidence</th><th>State</th></tr>
+<tr><td>Entire <code>core.storage</code> package (7 classes, 6 test classes)</td><td>Zero references from any production class outside the package</td><td><span class="badge remove">Dead</span></td></tr>
+<tr><td><code>modules/kafka</code>, <code>modules/postgresql</code></td><td>"Hello World" <code>App.java</code>; real pods live in core</td><td><span class="badge remove">Placeholder</span></td></tr>
+<tr><td>Domain-pod drivers in core POM</td><td><code>mongodb-driver-sync</code> optional-compile in core; kafka/postgres drivers as test deps</td><td>Wrong module</td></tr>
+<tr><td><code>deploymentCustomizers</code> / <code>statefulSetCustomizers</code></td><td>"the underlying managers don't yet consume them" (<span class="path">DeploymentPod.java:24</span>, <span class="path">StatefulSetPod.java:27</span>) — accepted, silently ignored</td><td><span class="badge defer">Unwired API</span></td></tr>
+<tr><td><code>@RegisterNamespace</code>, <code>@RegisterTestPodGroup</code>, <code>@RegisterTestPodCatalog</code>, <code>TestPodLifecycle.PER_METHOD</code></td><td>Annotations exist; <code>TestPodsExtension</code> never processes them; <code>TestPodGroup</code> is an empty class; <code>beforeEach</code>/<code>afterEach</code> are empty</td><td><span class="badge defer">Aspirational</span></td></tr>
+<tr><td><code>K8sCluster.newKind()</code>, <code>fromKubeconfig()</code> ×2, <code>ExternalAccessStrategy.minikubeService()</code></td><td>Throw <code>UnsupportedOperationException</code></td><td><span class="badge remove">Stub API</span></td></tr>
+<tr><td>10 <code>@Deprecated</code> members</td><td><code>withNodeName</code>, <code>getNodeName</code>, <code>getProfile</code>, <code>ownsNode</code>, <code>clearThreadLocal</code>, <code>stopAfterTest</code>, deprecated <code>Namespace</code> ctor, … in a 0.1.0-SNAPSHOT never-released lib</td><td><span class="badge remove">Baggage</span></td></tr>
+<tr><td><code>Registry.validateConfiguration()</code></td><td>Empty with <code>//TODO</code> (<span class="path">Registry.java:58</span>) but called on every run</td><td><span class="badge defer">Stub</span></td></tr>
+<tr><td><code>Provisioner</code></td><td>37 lines of pure delegation to <code>Registry</code>; no behavior of its own</td><td>Anemic layer</td></tr>
+</table>
+<p class="evidence"><strong>Why this matters for release:</strong> every public class/method/annotation that ships is a documented promise. Today roughly a quarter of the promises are unbacked. Cutting them is the cheapest, highest-leverage action available.</p>
+</div>
+
+<div class="card warn">
+<h3>C8 — Minikube specifics and naming leak across layers <span class="badge sev-med">Medium</span></h3>
+<p>Beyond C1.4: <code>LocalServicePod</code> hardcodes <code>host.minikube.internal</code> (<span class="path">LocalServicePod.java:53</span>); <code>MinikitCli</code> wraps three binaries (minikit, minikube, kubectl) under one name; the <em>minikit / minikube / testpods</em> profile-name trio (C2) confuses even the in-repo docs (README says <code>minikube start -p minikit</code>). Users will hit this in their first five minutes. Decide the story: either <em>minikit</em> is an implementation detail never surfaced to users, or it's the product name — not both.</p>
+</div>
+
+<div class="card warn">
+<h3>C9 — Error-handling inconsistencies <span class="badge sev-low">Low / Medium</span></h3>
+<ul class="tight">
+  <li><code>ClassCastException</code> thrown as a "no cluster configured" error (<span class="path">BaseManagedPod.java:314</span>).</li>
+  <li><code>getNamespace()</code> returns <code>null</code> (TODO) instead of <code>Optional</code>/throw (<span class="path">MinikubeCluster.java:157</span>).</li>
+  <li>Mixed exception vocabulary: <code>ClusterException</code>, <code>TestPodStartException</code>, bare <code>RuntimeException</code>, <code>IllegalStateException</code> for equivalent failure classes across strategies.</li>
+  <li>Broad <code>catch (Exception ignored) {}</code> in <code>doStop()</code>/<code>cleanup()</code> — reasonable for teardown, but silent; at minimum log at debug.</li>
+</ul>
+<p>For a <em>test</em> library, error messages are the product: a failed start should tell the user what to run next (<code>kubectl -n ns describe pod …</code>). The foundation (e.g. <code>createAndPingClient</code>'s "run kubectl cluster-info" hint) shows the right instinct — apply it uniformly.</p>
+</div>
+
+<div class="card warn">
+<h3>C10 — JUnit extension lifecycle-ownership ambiguities <span class="badge sev-med">Medium</span></h3>
+<ul class="tight">
+  <li><code>afterAll</code> unconditionally closes the registry's cluster (<span class="path">TestPodsExtension.java:290</span>) — including a cluster the <em>user</em> constructed in a <code>@RegisterCluster</code> field initializer. Combined with default <code>DESTROY_ON_CLOSE</code>, a user-created profile can be destroyed by the extension. Ownership should follow creation: whoever created it closes it.</li>
+  <li>Extension state lives in instance fields rather than the JUnit <code>ExtensionContext.Store</code>; with <code>@Nested</code> classes or parallel execution the registry/annotation fields can cross-contaminate.</li>
+  <li>Static-field injection via reflection (<code>assignClusterToTestClassStaticField</code> scans for <em>any</em> static <code>K8sCluster</code> field, annotated or not) is more magic than the Testcontainers precedent; surprising for fields the user meant to manage manually.</li>
+  <li>Registry double-registers pods under both registry name and <code>pod.getName()</code> (<span class="path">Registry.java:107–110</span>), so name collisions across those two namespaces silently overwrite.</li>
+</ul>
+</div>
+
+<!-- ============================================================ -->
+<h2 id="target">5. Proposed target architecture</h2>
+
+<p>The goal is not a rewrite. The strategy seams (S2) and the fluent API (S1) stay. The change is to (a) cut dead surface, (b) split the cluster abstraction along its three natural responsibilities, (c) make all dependencies point one way, and (d) shrink the pod base class to an orchestrator over the existing seams.</p>
+
+<h3>5.1 Artifact layout</h3>
+<figure>
+<svg viewBox="0 0 940 500" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="13">
+  <defs>
+    <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6a7e"/>
+    </marker>
+  </defs>
+
+  <!-- top row: adapters & modules -->
+  <rect x="40" y="40" width="200" height="64" rx="8" fill="#eef4fb" stroke="#0b5fa5" stroke-width="1.5"/>
+  <text x="140" y="66" text-anchor="middle" font-weight="600">testpods-junit</text>
+  <text x="140" y="84" text-anchor="middle" fill="#5a6a7e" font-size="11">annotations, extension,</text>
+  <text x="140" y="97" text-anchor="middle" fill="#5a6a7e" font-size="11">provisioning/registry</text>
+
+  <rect x="280" y="40" width="200" height="64" rx="8" fill="#eef4fb" stroke="#0b5fa5" stroke-width="1.5"/>
+  <text x="380" y="66" text-anchor="middle" font-weight="600">testpods-kafka</text>
+  <text x="380" y="84" text-anchor="middle" fill="#5a6a7e" font-size="11">KafkaPod + kafka-clients dep</text>
+  <text x="380" y="97" text-anchor="middle" fill="#5a6a7e" font-size="11">(module owns its driver)</text>
+
+  <rect x="520" y="40" width="200" height="64" rx="8" fill="#eef4fb" stroke="#0b5fa5" stroke-width="1.5"/>
+  <text x="620" y="66" text-anchor="middle" font-weight="600">testpods-postgresql</text>
+  <text x="620" y="84" text-anchor="middle" fill="#5a6a7e" font-size="11">PostgreSQLPod + jdbc dep</text>
+
+  <rect x="760" y="40" width="150" height="64" rx="8" fill="#f6f8fa" stroke="#9aa7b5" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="835" y="66" text-anchor="middle" font-weight="600" fill="#5a6a7e">testpods-mongodb</text>
+  <text x="835" y="90" text-anchor="middle" fill="#9a6700" font-size="11">post-MVP</text>
+
+  <!-- middle: cluster impl -->
+  <rect x="280" y="180" width="270" height="64" rx="8" fill="#fff" stroke="#1a2332" stroke-width="1.5"/>
+  <text x="415" y="206" text-anchor="middle" font-weight="600">testpods-minikube</text>
+  <text x="415" y="224" text-anchor="middle" fill="#5a6a7e" font-size="11">MinikubeClusterProvider, MinikitCli,</text>
+  <text x="415" y="237" text-anchor="middle" fill="#5a6a7e" font-size="11">image loader, dashboard (opt-in)</text>
+
+  <rect x="600" y="180" width="200" height="64" rx="8" fill="#f6f8fa" stroke="#9aa7b5" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="700" y="206" text-anchor="middle" font-weight="600" fill="#5a6a7e">testpods-kind / -kubeconfig</text>
+  <text x="700" y="228" text-anchor="middle" fill="#9a6700" font-size="11">future — same SPI, no core change</text>
+
+  <!-- core -->
+  <rect x="120" y="330" width="700" height="120" rx="10" fill="#e8f5ee" stroke="#1a7f4b" stroke-width="2"/>
+  <text x="470" y="356" text-anchor="middle" font-weight="700" font-size="15">testpods-core</text>
+  <g font-size="11.5">
+    <rect x="150" y="372" width="150" height="58" rx="6" fill="#fff" stroke="#1a7f4b"/>
+    <text x="225" y="392" text-anchor="middle" font-weight="600">api</text>
+    <text x="225" y="406" text-anchor="middle" fill="#5a6a7e">TestPod, WaitStrategy,</text>
+    <text x="225" y="419" text-anchor="middle" fill="#5a6a7e">PropertyContext, SPI</text>
+
+    <rect x="320" y="372" width="160" height="58" rx="6" fill="#fff" stroke="#1a7f4b"/>
+    <text x="400" y="392" text-anchor="middle" font-weight="600">cluster</text>
+    <text x="400" y="406" text-anchor="middle" fill="#5a6a7e">ClusterProvider (SPI),</text>
+    <text x="400" y="419" text-anchor="middle" fill="#5a6a7e">K8sCluster, Namespace</text>
+
+    <rect x="500" y="372" width="150" height="58" rx="6" fill="#fff" stroke="#1a7f4b"/>
+    <text x="575" y="392" text-anchor="middle" font-weight="600">runtime</text>
+    <text x="575" y="406" text-anchor="middle" fill="#5a6a7e">BaseManagedPod (slim),</text>
+    <text x="575" y="419" text-anchor="middle" fill="#5a6a7e">workload/service mgrs</text>
+
+    <rect x="670" y="372" width="120" height="58" rx="6" fill="#fff" stroke="#1a7f4b"/>
+    <text x="730" y="392" text-anchor="middle" font-weight="600">pods</text>
+    <text x="730" y="406" text-anchor="middle" fill="#5a6a7e">GenericPod,</text>
+    <text x="730" y="419" text-anchor="middle" fill="#5a6a7e">LocalServicePod</text>
+  </g>
+
+  <!-- arrows -->
+  <g stroke="#5a6a7e" stroke-width="1.8" fill="none">
+    <path d="M140 104 C150 220 220 300 260 328" marker-end="url(#arr2)"/>
+    <path d="M380 104 C390 180 420 260 450 328" marker-end="url(#arr2)"/>
+    <path d="M620 104 C620 180 600 260 580 328" marker-end="url(#arr2)"/>
+    <path d="M415 244 L430 328" marker-end="url(#arr2)"/>
+    <path d="M700 244 C690 280 660 310 640 328" marker-end="url(#arr2)" stroke-dasharray="6 4"/>
+  </g>
+  <text x="240" y="300" fill="#1a7f4b" font-size="12" font-weight="600">all arrows point down — no cycles</text>
+</svg>
+<figcaption>Fig. 2 — Proposed artifacts. Core exposes an SPI; cluster implementations and domain modules plug in. The existing empty <code>modules/*</code> shells become the real homes of the domain pods and their client-library dependencies.</figcaption>
+</figure>
+
+<p><strong>Pragmatic note:</strong> if splitting Maven modules feels heavy for the MVP, the same decoupling can be achieved <em>inside</em> core first by enforcing one-directional package dependencies (api &larr; cluster &larr; runtime &larr; pods &larr; junit) with ArchUnit tests, then extracting artifacts later. The package discipline is the point; the artifact split is the enforcement mechanism.</p>
+
+<!-- ============================================================ -->
+<h2 id="cluster-split">6. The cluster interface split in detail</h2>
+
+<p>This answers the review question directly: yes — split the cluster interface into an <em>operational</em> interface (provisioning/lifecycle, per cluster technology) and <em>interaction</em> interfaces (connection + namespace). Three focused types replace the current fat one:</p>
+
+<figure>
+<svg viewBox="0 0 940 400" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="12.5">
+  <defs>
+    <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6a7e"/>
+    </marker>
+  </defs>
+
+  <!-- before -->
+  <rect x="30" y="50" width="250" height="290" rx="8" fill="#fdeae5" stroke="#b3341f" stroke-width="1.5"/>
+  <text x="155" y="76" text-anchor="middle" font-weight="700">K8sCluster (today)</text>
+  <g fill="#1a2332" font-size="11.5">
+    <text x="48" y="102">discover() / newMinikube()</text>
+    <text x="48" y="120">newKind()  ⚠ throws</text>
+    <text x="48" y="138">fromKubeconfig() ⚠ throws</text>
+    <text x="48" y="156">getClient()</text>
+    <text x="48" y="174">getAccessStrategy()</text>
+    <text x="48" y="192">getDefaultNamespace()</text>
+    <text x="48" y="210">getNamespace() → null</text>
+    <text x="48" y="228">createNamespace() ×2</text>
+    <text x="48" y="246">attachNamespace()</text>
+    <text x="48" y="264">deleteNamespace()</text>
+    <text x="48" y="282">withNamespace() ⚠ builder-on-interface</text>
+    <text x="48" y="300">close()</text>
+  </g>
+  <text x="155" y="326" text-anchor="middle" fill="#b3341f" font-size="11">3 concerns + factories + stubs</text>
+
+  <path d="M295 195 L345 195" stroke="#5a6a7e" stroke-width="2" marker-end="url(#arr3)"/>
+  <text x="320" y="185" text-anchor="middle" fill="#5a6a7e" font-size="11">split</text>
+
+  <!-- after: provider -->
+  <rect x="360" y="30" width="260" height="150" rx="8" fill="#e8f5ee" stroke="#1a7f4b" stroke-width="1.5"/>
+  <text x="490" y="54" text-anchor="middle" font-weight="700">ClusterProvider  (operational SPI)</text>
+  <g font-size="11.5">
+    <text x="378" y="80">status() : ClusterStatus</text>
+    <text x="378" y="98">start() / stop() / destroy()</text>
+    <text x="378" y="116">connect() : K8sCluster</text>
+    <text x="378" y="134">lifecyclePolicy, ownership</text>
+    <text x="378" y="152" fill="#5a6a7e">impls: Minikube, Kind*, Kubeconfig*</text>
+  </g>
+
+  <!-- after: connection -->
+  <rect x="360" y="210" width="260" height="150" rx="8" fill="#e8f5ee" stroke="#1a7f4b" stroke-width="1.5"/>
+  <text x="490" y="234" text-anchor="middle" font-weight="700">K8sCluster  (connection)</text>
+  <g font-size="11.5">
+    <text x="378" y="260">client() : KubernetesClient</text>
+    <text x="378" y="278">accessStrategy() : ExternalAccess</text>
+    <text x="378" y="296">namespaces() : NamespaceManager</text>
+    <text x="378" y="314">capability(Class&lt;T&gt;) : Optional&lt;T&gt;</text>
+    <text x="378" y="332" fill="#5a6a7e">e.g. capability(ImageLoader.class)</text>
+  </g>
+
+  <!-- after: namespace -->
+  <rect x="660" y="120" width="250" height="180" rx="8" fill="#e8f5ee" stroke="#1a7f4b" stroke-width="1.5"/>
+  <text x="785" y="144" text-anchor="middle" font-weight="700">Namespace  (work surface)</text>
+  <g font-size="11.5">
+    <text x="678" y="170">name(), isOwned()</text>
+    <text x="678" y="188">created via NamespaceManager:</text>
+    <text x="678" y="206">create() / create(name)</text>
+    <text x="678" y="224">attach(name) / delete(name)</text>
+    <text x="678" y="242">list() — no null returns</text>
+    <text x="678" y="266" fill="#5a6a7e">pods deploy INTO a Namespace;</text>
+    <text x="678" y="282" fill="#5a6a7e">namespace-scoped cleanup lives here</text>
+  </g>
+
+  <g stroke="#5a6a7e" stroke-width="1.8" fill="none">
+    <path d="M490 180 L490 208" marker-end="url(#arr3)"/>
+    <path d="M622 285 L658 260" marker-end="url(#arr3)"/>
+  </g>
+  <text x="500" y="199" fill="#5a6a7e" font-size="11">connect()</text>
+</svg>
+<figcaption>Fig. 3 — Splitting the fat cluster interface. Asterisks: future implementations arrive as new artifacts, not interface edits.</figcaption>
+</figure>
+
+<h3>6.1 Sketch of the resulting API</h3>
+<pre><code>// ---- operational side (per cluster technology, SPI) ----
+public interface ClusterProvider extends AutoCloseable {
+  ClusterStatus status();
+  void start();                         // explicit, not hidden inside "discover"
+  K8sCluster connect();                 // fails fast if not reachable
+  void close();                         // applies lifecycle policy IF this provider started it
+}
+
+// discovery becomes an explicit, side-effect-transparent helper:
+public final class Clusters {
+  /** Attach to a running cluster; never starts one. */
+  public static Optional&lt;K8sCluster&gt; findRunning();
+  /** Attach or start the default local cluster (documented: may take minutes). */
+  public static K8sCluster attachOrStart(ClusterSpec spec);
+}
+
+// ---- interaction side (technology-neutral) ----
+public interface K8sCluster extends AutoCloseable {
+  KubernetesClient client();
+  ExternalAccessStrategy accessStrategy();
+  NamespaceManager namespaces();
+  &lt;T&gt; Optional&lt;T&gt; capability(Class&lt;T&gt; type);   // ImageLoader, DashboardUi, ...
+}
+
+public interface NamespaceManager {
+  Namespace create();                    // generated name, owned
+  Namespace create(String name);         // owned; throws if exists
+  Namespace attach(String name);         // external; never deleted by us
+  Optional&lt;Namespace&gt; find(String name);
+  void delete(Namespace ns);             // refuses external namespaces
+}</code></pre>
+
+<p>Key properties of this shape:</p>
+<ul class="tight">
+  <li><strong>Minikube-only features become capabilities</strong> (<code>cluster.capability(ImageLoader.class)</code>), removing the <code>instanceof MinikubeImageLoadTarget</code> checks from <code>BaseManagedPod</code> and <code>GenericPod</code> and letting Kind implement image-loading its own way later.</li>
+  <li><strong>No stub methods.</strong> Kind/kubeconfig support is a new artifact implementing <code>ClusterProvider</code> — core never changes and never advertises what it can't do.</li>
+  <li><strong>Ownership becomes mechanical:</strong> the party that called <code>start()</code> owns the profile; the party that called <code>create()</code> owns the namespace; <code>close()</code> only reaps what its caller owns. This resolves C10's "extension destroys the user's cluster" hazard by construction.</li>
+  <li><strong><code>ExternalAccessStrategy</code> loses its <code>Pod</code> parameter</strong> — it takes <code>(Namespace ns, String serviceName, int port, OptionalInt fixedPort)</code> or a small <code>ServiceRef</code> record, breaking the cluster&rarr;pods cycle (C1.2).</li>
+</ul>
+
+<!-- ============================================================ -->
+<h2 id="pod-slim">7. Slimming the Pod abstraction</h2>
+
+<p>Split <code>Pod&lt;SELF&gt;</code> along its natural fault line — the one <code>LocalServicePod</code> already exposes:</p>
+
+<table>
+<tr><th>Interface</th><th>Members</th><th>Implemented by</th></tr>
+<tr>
+  <td><code>TestPod</code> (runtime handle — what tests interact with)</td>
+  <td><code>start()</code>, <code>stop()</code>, <code>isRunning()</code>, <code>isReady()</code>, <code>getName()</code>, <code>getNamespace()</code>, internal/external endpoints, <code>publishProperties()</code>, <code>getReferencedProperties()</code></td>
+  <td>Everything, including <code>LocalServicePod</code> — no method throws</td>
+</tr>
+<tr>
+  <td><code>ContainerizedPod extends TestPod</code></td>
+  <td><code>getLogs(…)</code>, <code>exec(…)</code>, exposed/mapped ports</td>
+  <td>Workload-backed pods only</td>
+</tr>
+<tr>
+  <td><code>WorkloadCustomization&lt;SELF&gt;</code> (fluent mixin)</td>
+  <td><code>withInitContainer</code>, <code>withSidecar</code>, <code>withPodCustomizer</code>, <code>withResources</code>, labels/annotations</td>
+  <td><code>BaseManagedPod</code> subclasses; <em>not</em> <code>LocalServicePod</code></td>
+</tr>
+</table>
+
+<p>And decompose <code>BaseManagedPod</code> by extraction — no behavior change, just homes:</p>
+<table>
+<tr><th>Extracted collaborator</th><th>Takes over</th><th>Approx. lines out</th></tr>
+<tr><td><code>PodRuntimeContext</code> / <code>DefaultsResolver</code></td><td><code>resolveRuntimeDefaults()</code> and the five-way cluster/namespace resolution (also fixes double invocation)</td><td class="num">~40</td></tr>
+<tr><td><code>PodDiagnostics</code></td><td><code>buildDeploymentDetailsReport()</code> + all <code>appendX</code> helpers + env masking; also becomes the "print diagnostics on start failure" feature</td><td class="num">~250</td></tr>
+<tr><td><code>PodExec</code> (or use client directly)</td><td><code>exec()</code>/<code>getLogs()</code> plumbing</td><td class="num">~90</td></tr>
+<tr><td><code>ImagePreloader</code> via <code>cluster.capability(ImageLoader.class)</code></td><td><code>preloadExternalImageForMinikube</code>, static image caches (state moves onto the cluster/capability instance — no more static <code>IdentityHashMap</code>s)</td><td class="num">~50</td></tr>
+</table>
+<p>Result: <code>BaseManagedPod</code> ≈ 350–400 lines doing exactly two things — hold fluent configuration and orchestrate <code>WorkloadManager</code> + <code>ServiceManager</code> + <code>WaitStrategy</code> through start/stop. That is a class a contributor can read in one sitting, which is the stated growth goal.</p>
+
+<!-- ============================================================ -->
+<h2 id="recommendations">8. Refactoring recommendations</h2>
+<p>Ordered into three waves. Effort: S &lt; 1 day, M = 1–3 days, L = 1–2 weeks. Every Wave-1 item is deletion or renaming — near-zero regression risk, immediate clarity payoff.</p>
+
+<h3>Wave 1 — Cut &amp; correct (release blockers, mostly deletions)</h3>
+<table>
+<tr><th>#</th><th>Recommendation</th><th>Addresses</th><th>Effort</th></tr>
+<tr><td>R1</td><td><strong>Delete the <code>core.storage</code> package</strong> (and its tests). It is unreferenced. Re-introduce from git history if/when a pod needs it.</td><td>C7</td><td>S</td></tr>
+<tr><td>R2</td><td><strong>Delete all <code>@Deprecated</code> members and stub methods.</strong> Remove <code>newKind()</code>, <code>fromKubeconfig()</code>, <code>minikubeService()</code> (no-arg), <code>withNodeName</code>/<code>getNodeName</code>/<code>getProfile</code>/<code>ownsNode</code>/<code>clearThreadLocal</code>/<code>stopAfterTest</code>, the deprecated <code>Namespace</code> constructor, and <code>K8sCluster.withNamespace()</code>. Pre-1.0 there is nothing to deprecate for.</td><td>C2, C7</td><td>S</td></tr>
+<tr><td>R3</td><td><strong>Remove or hide unimplemented annotation surface:</strong> <code>@RegisterNamespace</code>, <code>@RegisterTestPodGroup</code>, <code>@RegisterTestPodCatalog</code>, empty <code>TestPodGroup</code>, <code>TestPodLifecycle.PER_METHOD</code>. Keep the catalog/group vision in <code>specs/</code> as the post-MVP roadmap (it's a good vision — it just must not ship as inert API).</td><td>C7</td><td>S</td></tr>
+<tr><td>R4</td><td><strong>Settle the naming story: one user-facing profile name.</strong> Recommend: default profile <code>testpods</code> everywhere; treat <code>minikit</code> strictly as an internal binary detail of <code>MinikitCli</code>. Fix the <code>discover()</code> Javadoc, the error-message hint, and the README in the same commit.</td><td>C2, C8</td><td>S</td></tr>
+<tr><td>R5</td><td><strong>Either wire or remove the deployment/statefulset customizers.</strong> Silently accepting-and-ignoring configuration is the worst of both options. Wiring them through <code>WorkloadConfig</code> is ~M; removal is S. For MVP: wire the StatefulSet/Service ones actually used by domain pods, remove the rest.</td><td>C7</td><td>S–M</td></tr>
+<tr><td>R6</td><td><strong>Error-handling pass:</strong> replace the <code>ClassCastException</code>, make <code>getNamespace</code>/<code>find</code> return <code>Optional</code>, standardize on <code>ClusterException</code> (cluster layer) + <code>TestPodStartException</code> (pod layer), and make every start-failure message actionable (include namespace, workload name, last events, and a suggested <code>kubectl</code> command — <code>PodDiagnostics</code> from §7 gives this almost for free).</td><td>C9</td><td>M</td></tr>
+</table>
+
+<h3>Wave 2 — Decouple (the structural refactorings)</h3>
+<table>
+<tr><th>#</th><th>Recommendation</th><th>Addresses</th><th>Effort</th></tr>
+<tr><td>R7</td><td><strong>Split the cluster abstraction</strong> per §6: <code>ClusterProvider</code> (SPI) + <code>K8sCluster</code> (connection + capabilities) + <code>NamespaceManager</code>/<code>Namespace</code>. Move <code>discover()</code> semantics into an explicit <code>Clusters.findRunning()</code> / <code>attachOrStart()</code>. Make dashboard enablement opt-in (<code>builder().withDashboard()</code>), and stop creating a namespace in the constructor — namespaces are created by whoever needs one (the Registry already does this).</td><td>C1.3, C2, C5</td><td>L</td></tr>
+<tr><td>R8</td><td><strong>Break the junit&harr;core cycle.</strong> Simplest: move <code>provisioning</code> (Registry, Provisioner, ReflectionHelper, Field*) into the <code>org.testpods.junit</code> tree — it exists solely to serve the extension. Merge the anemic <code>Provisioner</code> into <code>Registry</code> (or give it the orchestration role for real). Enforce the one-way rule (<code>junit → core</code>, never back) with an ArchUnit test so the cycle cannot regrow.</td><td>C1.1, C7</td><td>M</td></tr>
+<tr><td>R9</td><td><strong>Decompose <code>BaseManagedPod</code></strong> per §7 (context/diagnostics/exec/preloader extraction; capability-based image loading; single defaults-resolution path). Split <code>Pod</code> into <code>TestPod</code> / <code>ContainerizedPod</code> so <code>LocalServicePod</code> stops throwing.</td><td>C3, C4, C1.4, C6</td><td>L</td></tr>
+<tr><td>R10</td><td><strong>Move domain pods into the module shells:</strong> <code>KafkaPod</code>&rarr;<code>modules/kafka</code>, <code>PostgreSQLPod</code>&rarr;<code>modules/postgresql</code> (each carrying its own client-library dependency); MongoDB module deferred (R-MVP). Core's POM loses the mongodb/kafka/postgres driver entanglement. Split <code>ExternalAccessStrategy.java</code>'s four inner strategies into their own files while you're in there.</td><td>C7, C1</td><td>M</td></tr>
+</table>
+
+<h3>Wave 3 — Harden for release</h3>
+<table>
+<tr><th>#</th><th>Recommendation</th><th>Addresses</th><th>Effort</th></tr>
+<tr><td>R11</td><td><strong>Fix extension lifecycle ownership:</strong> close only what the extension created; move extension state into <code>ExtensionContext.Store</code> (keyed per class) for <code>@Nested</code>/parallel safety; require <code>@RegisterCluster</code> on cluster fields instead of scanning all static <code>K8sCluster</code> fields; detect and fail on registry name collisions.</td><td>C10</td><td>M</td></tr>
+<tr><td>R12</td><td><strong>Testing pyramid for the lib itself:</strong> unit-test lifecycle logic against the Fabric8 mock server (already a test dep — barely used); keep minikube ITs as a separate, tagged suite; add an ArchUnit test freezing the package dependency rules from Fig. 2. Target: contributor can run the full non-IT suite with no cluster installed.</td><td>All</td><td>M</td></tr>
+</table>
+
+<!-- ============================================================ -->
+<h2 id="mvp">9. MVP release cut — keep / defer / remove</h2>
+<p>Applying the motto — <em>a small set of features that works 100%, documented</em> — to the current surface:</p>
+
+<table>
+<tr><th>Feature</th><th>Verdict</th><th>Rationale</th></tr>
+<tr><td>Minikube cluster (attach or start, profile ownership, lifecycle policies)</td><td><span class="badge keep">Keep</span></td><td>The one supported cluster type. Post-R7 it's the reference <code>ClusterProvider</code>.</td></tr>
+<tr><td><code>GenericPod</code> (+ <code>fromLocalImage</code>)</td><td><span class="badge keep">Keep</span></td><td>Core value proposition; local-image loading is essential for the dev workflow.</td></tr>
+<tr><td><code>PostgreSQLPod</code></td><td><span class="badge keep">Keep</span></td><td>Matches PRD Phase 1; well-developed; first domain module.</td></tr>
+<tr><td><code>KafkaPod</code></td><td><span class="badge keep">Keep (if ITs are green)</span></td><td>Most complex pod (advertised listeners) — exactly the pain users want solved; it also exercises every seam. If its IT suite isn't reliably green, defer rather than ship flaky.</td></tr>
+<tr><td><code>LocalServicePod</code> + external port-forward access strategy</td><td><span class="badge keep">Keep</span></td><td>The differentiator; already documented in <code>localservicepod.html</code>.</td></tr>
+<tr><td>JUnit extension: <code>@TestPods</code>, <code>@TestPod</code>, <code>@RegisterCluster</code>, static + instance field injection</td><td><span class="badge keep">Keep</span></td><td>The front door. Hardened per R11.</td></tr>
+<tr><td><code>PropertyContext</code> + <code>${…}</code> templates + dependency-ordered startup</td><td><span class="badge keep">Keep</span></td><td>Differentiator; already working; document prominently.</td></tr>
+<tr><td>Wait strategies (readiness, log, port, http, command, composite)</td><td><span class="badge keep">Keep</span></td><td>Complete, Testcontainers-parity feature.</td></tr>
+<tr><td>Access strategies: localhost port-forward (default)</td><td><span class="badge keep">Keep</span></td><td>One blessed default; the in-JVM and LoadBalancer variants stay internal/undocumented for MVP.</td></tr>
+<tr><td><code>MongoDBPod</code></td><td><span class="badge defer">Defer</span></td><td>Smallest of the three domain pods (266 lines vs 730+); deferring removes the optional driver dep from core and shrinks the tested surface. Ship as first post-MVP module.</td></tr>
+<tr><td>Catalog / group / composability annotations</td><td><span class="badge defer">Defer</span></td><td>Great roadmap (README "Future Annotations"), zero implementation today. Keep as spec.</td></tr>
+<tr><td>Per-method pod lifecycle</td><td><span class="badge defer">Defer</span></td><td><code>beforeEach</code>/<code>afterEach</code> are empty; per-class covers the MVP use cases.</td></tr>
+<tr><td>Kind / kubeconfig cluster support</td><td><span class="badge defer">Defer</span></td><td>Post-R7 these are new artifacts, not core edits. Remove the stubs now (R2).</td></tr>
+<tr><td>Dashboard auto-enable on every cluster start</td><td><span class="badge defer">Make opt-in</span></td><td>Debug aid; shouldn't cost every CI run up to a minute (R7).</td></tr>
+<tr><td><code>core.storage</code> package</td><td><span class="badge remove">Remove</span></td><td>Dead code (R1).</td></tr>
+<tr><td>All deprecated members, stub factories, unwired customizers</td><td><span class="badge remove">Remove</span></td><td>R2, R3, R5.</td></tr>
+</table>
+
+<h3>9.1 Definition of "complete" per shipped feature</h3>
+<p>For the release, propose this bar for every feature in the Keep column:</p>
+<ol class="tight">
+  <li>Unit tests (mock-server where applicable) <em>and</em> at least one integration test that runs green in CI against minikube.</li>
+  <li>A documented happy path in the user docs, with a copy-pasteable snippet verified by an example test.</li>
+  <li>Failure modes produce actionable error messages (R6 bar).</li>
+  <li>No public method that throws <code>UnsupportedOperationException</code> and no <code>TODO</code> in public Javadoc.</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="planning">10. Input for the planning session</h2>
+<p>Suggested sequencing for the brainstorm/planning session, with dependencies between work items:</p>
+
+<figure>
+<svg viewBox="0 0 940 240" font-family="-apple-system, Segoe UI, Roboto, sans-serif" font-size="12.5">
+  <defs>
+    <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5a6a7e"/>
+    </marker>
+  </defs>
+  <rect x="30" y="80" width="180" height="80" rx="8" fill="#fdeae5" stroke="#b3341f" stroke-width="1.5"/>
+  <text x="120" y="108" text-anchor="middle" font-weight="700">Wave 1</text>
+  <text x="120" y="126" text-anchor="middle">Cut &amp; correct</text>
+  <text x="120" y="144" text-anchor="middle" fill="#5a6a7e" font-size="11">R1–R6 · ~1 week</text>
+
+  <rect x="290" y="30" width="180" height="80" rx="8" fill="#fff4d6" stroke="#9a6700" stroke-width="1.5"/>
+  <text x="380" y="58" text-anchor="middle" font-weight="700">R7 Cluster split</text>
+  <text x="380" y="76" text-anchor="middle" fill="#5a6a7e" font-size="11">unblocks Kind later</text>
+  <text x="380" y="94" text-anchor="middle" fill="#5a6a7e" font-size="11">L</text>
+
+  <rect x="290" y="130" width="180" height="80" rx="8" fill="#fff4d6" stroke="#9a6700" stroke-width="1.5"/>
+  <text x="380" y="158" text-anchor="middle" font-weight="700">R8 Break junit cycle</text>
+  <text x="380" y="176" text-anchor="middle" fill="#5a6a7e" font-size="11">independent of R7</text>
+  <text x="380" y="194" text-anchor="middle" fill="#5a6a7e" font-size="11">M</text>
+
+  <rect x="530" y="80" width="190" height="80" rx="8" fill="#fff4d6" stroke="#9a6700" stroke-width="1.5"/>
+  <text x="625" y="104" text-anchor="middle" font-weight="700">R9 Pod decomposition</text>
+  <text x="625" y="122" text-anchor="middle" fill="#5a6a7e" font-size="11">needs R7 capabilities</text>
+  <text x="625" y="140" text-anchor="middle" fill="#5a6a7e" font-size="11">L</text>
+
+  <rect x="530" y="180" width="190" height="50" rx="8" fill="#fff4d6" stroke="#9a6700" stroke-width="1.5"/>
+  <text x="625" y="200" text-anchor="middle" font-weight="700">R10 Module extraction</text>
+  <text x="625" y="217" text-anchor="middle" fill="#5a6a7e" font-size="11">after R9 settles the base API · M</text>
+
+  <rect x="770" y="80" width="150" height="80" rx="8" fill="#e8f5ee" stroke="#1a7f4b" stroke-width="1.5"/>
+  <text x="845" y="108" text-anchor="middle" font-weight="700">Wave 3</text>
+  <text x="845" y="126" text-anchor="middle">R11–R12 + docs</text>
+  <text x="845" y="144" text-anchor="middle" fill="#5a6a7e" font-size="11">→ 0.1.0 release</text>
+
+  <g stroke="#5a6a7e" stroke-width="1.8" fill="none">
+    <path d="M212 100 L288 78" marker-end="url(#arr4)"/>
+    <path d="M212 140 L288 162" marker-end="url(#arr4)"/>
+    <path d="M472 80 L528 106" marker-end="url(#arr4)"/>
+    <path d="M472 180 C495 190 505 195 528 200" marker-end="url(#arr4)"/>
+    <path d="M722 120 L768 120" marker-end="url(#arr4)"/>
+    <path d="M625 160 L625 178" marker-end="url(#arr4)"/>
+  </g>
+</svg>
+<figcaption>Fig. 4 — Task dependencies. R7 and R8 can run in parallel; R9 wants R7's capability mechanism; R10 is last because moving code twice is waste.</figcaption>
+</figure>
+
+<h3>10.1 Candidate task list (seed for planning)</h3>
+<table>
+<tr><th>Task</th><th>From</th><th>Acceptance criteria (sketch)</th></tr>
+<tr><td>Deletion pass: storage pkg, deprecated members, stub APIs, inert annotations</td><td>R1–R3</td><td>No public member throws <code>UnsupportedOperationException</code>; no <code>@Deprecated</code> in main source; build + all tests green</td></tr>
+<tr><td>Profile-naming unification + docs sweep</td><td>R4</td><td>Grep for "minikit" outside <code>MinikitCli</code> returns nothing user-facing; README quickstart verified end-to-end on a clean machine</td></tr>
+<tr><td>Customizer wiring or removal</td><td>R5</td><td>Every <code>withXCustomizer</code> method demonstrably affects the created resource (asserted via mock-server test) or no longer exists</td></tr>
+<tr><td>Exception &amp; message overhaul</td><td>R6</td><td>Failure-mode test per public start path asserting the message contains namespace + resource + next-step hint</td></tr>
+<tr><td>Cluster SPI split (<code>ClusterProvider</code>/<code>K8sCluster</code>/<code>NamespaceManager</code>), opt-in dashboard, no ctor namespace</td><td>R7</td><td>ArchUnit rule: <code>api</code>/<code>cluster</code> packages have no dependency on impl packages; constructing a connection performs no cluster mutation</td></tr>
+<tr><td>Move provisioning under junit; merge Provisioner into Registry</td><td>R8</td><td>ArchUnit rule: nothing under <code>org.testpods.core</code> imports <code>org.testpods.junit</code></td></tr>
+<tr><td><code>BaseManagedPod</code> decomposition + <code>TestPod</code>/<code>ContainerizedPod</code> split</td><td>R9</td><td><code>BaseManagedPod</code> &le; ~400 lines; <code>LocalServicePod</code> implements its interface fully; no static image caches</td></tr>
+<tr><td>Extract kafka/postgresql modules; defer mongodb</td><td>R10</td><td>Core POM has no database/broker client dependencies; examples build against the new modules via the BOM</td></tr>
+<tr><td>Extension hardening (ownership, Store, collisions)</td><td>R11</td><td>Test proving a user-created cluster survives <code>afterAll</code>; <code>@Nested</code> test class works</td></tr>
+<tr><td>Lib test pyramid + CI</td><td>R12</td><td><code>mvn test</code> green with no minikube installed; tagged IT suite green in CI with minikube</td></tr>
+</table>
+
+<h3>10.2 Closing assessment</h3>
+<p>TestPods does not have a design problem at the concept level — the seams, ownership semantics, and developer-workflow features are better thought out than most pre-release libraries. It has a <em>surface honesty</em> problem (advertising more than works) and a <em>coupling</em> problem (everything reachable from everything). Both are fixable in bounded, low-risk steps, and the fix order matters: <strong>delete first, then decouple, then harden</strong>. Done in that order, the remaining code is exactly the small, comprehensible, 100%-working library the release motto calls for — with an architecture (SPI + capabilities + one-way dependencies) that can absorb Kind support, more modules, and the catalog vision without another restructuring.</p>
+
+</main>
+</body>
+</html>
